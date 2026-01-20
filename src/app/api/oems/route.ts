@@ -21,9 +21,15 @@ const oemSchema = z.object({
 });
 
 export const POST = withErrorHandler(async (req: Request) => {
+    console.log('[OEM API] Starting registration...');
     const user = await requireRole(['sales_order_manager', 'ceo']);
+    console.log('[OEM API] Auth check passed:', user.id);
+
     const body = await req.json();
+    console.log('[OEM API] Request body received:', body);
+
     const validated = oemSchema.parse(body);
+    console.log('[OEM API] Validation passed');
 
     // Validate unique contact roles
     const roles = validated.contacts.map(c => c.contact_role);
@@ -32,8 +38,10 @@ export const POST = withErrorHandler(async (req: Request) => {
     }
 
     const oemId = await generateId('OEM', oems);
+    console.log('[OEM API] Generated ID:', oemId);
 
     const result = await db.transaction(async (tx) => {
+        console.log('[OEM API] Starting DB transaction...');
         const { contacts: contactData, ...oemInfo } = validated;
 
         const [oem] = await tx.insert(oems).values({
@@ -42,6 +50,7 @@ export const POST = withErrorHandler(async (req: Request) => {
             status: 'active',
             created_by: user.id,
         }).returning();
+        console.log('[OEM API] OEM record inserted');
 
         const contacts = await tx.insert(oemContacts).values(
             contactData.map((c, i) => ({
@@ -50,14 +59,21 @@ export const POST = withErrorHandler(async (req: Request) => {
                 ...c,
             }))
         ).returning();
+        console.log('[OEM API] Contacts inserted');
 
         return { oem, contacts };
     });
 
-    await triggerN8nWebhook('oem-onboarded', {
-        oem_id: result.oem.id,
-        contacts: result.contacts,
-    });
+    console.log('[OEM API] Transaction completed. Triggering webhook...');
+    try {
+        await triggerN8nWebhook('oem-onboarded', {
+            oem_id: result.oem.id,
+            contacts: result.contacts,
+        });
+        console.log('[OEM API] Webhook triggered');
+    } catch (webhookErr) {
+        console.error('[OEM API] Webhook failed (non-blocking):', webhookErr);
+    }
 
     return successResponse(result, 201);
 });

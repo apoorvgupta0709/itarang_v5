@@ -2,13 +2,10 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { LayoutWrapper } from "@/components/layout/LayoutWrapper";
+import { AuthProvider } from "@/components/auth/AuthProvider";
 
 const inter = Inter({ subsets: ["latin"] });
-
-export const metadata: Metadata = {
-  title: "iTarang CRM v3.0",
-  description: "Next-generation procurement and dealer management",
-};
+// ... (metadata unchanged)
 
 export default function RootLayout({
   children,
@@ -18,9 +15,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.className} min-h-screen`}>
-        <LayoutWrapper>
-          {children}
-        </LayoutWrapper>
+        <AuthProvider>
+          <LayoutWrapper>
+            {children}
+          </LayoutWrapper>
+        </AuthProvider>
       </body>
     </html>
   );

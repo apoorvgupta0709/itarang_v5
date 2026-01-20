@@ -1,26 +1,42 @@
 import { db } from './db';
 import { users } from './db/schema';
 import { eq } from 'drizzle-orm';
+import { createClient } from './supabase/server';
+import { redirect } from 'next/navigation';
 
-// Mocking requireAuth and requireRole until Clerk is fully setup
 export async function requireAuth() {
-    // Return a dummy user for development
-    const user = await db.query.users.findFirst({
-        where: eq(users.role, 'ceo')
-    });
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-        // If no user exists, create a default admin
-        const [newUser] = await db.insert(users).values({
-            id: 'fc571565-a161-476e-82e4-1f30a4178f1b', // Using actual dev CEO UUID
-            name: 'System Admin',
-            email: 'admin@itarang.com',
-            role: 'ceo',
-        }).returning();
-        return newUser;
+        redirect('/login');
     }
 
-    return user;
+    // Fetch user from public.users table to get their role
+    try {
+        const dbUsers = await db.select()
+            .from(users)
+            .where(eq(users.id, user.id))
+            .limit(1);
+
+        const dbUser = dbUsers[0];
+
+        if (!dbUser) {
+            console.log(`[Auth] No DB user found for ID: ${user.id}`);
+            // Fallback for new users or sync issues
+            return {
+                id: user.id,
+                name: user.email?.split('@')[0] || 'User',
+                email: user.email || '',
+                role: 'user', // Default low-privilege role
+            };
+        }
+
+        return dbUser;
+    } catch (dbErr) {
+        console.error('[Auth] Database error in requireAuth:', dbErr);
+        throw dbErr;
+    }
 }
 
 export async function requireRole(roles: string[]) {

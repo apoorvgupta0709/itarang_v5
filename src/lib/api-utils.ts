@@ -26,7 +26,17 @@ export function withErrorHandler(handler: Function) {
         } catch (error: any) {
             console.error('API Error:', error);
             if (error instanceof ZodError) {
-                return errorResponse('Validation failed', 400);
+                return NextResponse.json({
+                    success: false,
+                    error: {
+                        message: 'Validation failed',
+                        details: error.issues.map(i => ({
+                            path: i.path.join('.'),
+                            message: i.message
+                        }))
+                    },
+                    timestamp: new Date().toISOString()
+                }, { status: 400 });
             }
             return errorResponse(error.message || 'Internal error', 500);
         }

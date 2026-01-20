@@ -10,7 +10,10 @@ export const users = pgTable('users', {
     role: varchar('role', { length: 50 }).notNull(), // sales_manager, sales_head, business_head, ceo, finance_controller, inventory_manager, service_engineer, sales_order_manager
     clerk_id: varchar('clerk_id', { length: 255 }).unique(),
     status: varchar('status', { length: 20 }).default('active'),
-    created_at: timestamp('created_at').defaultNow().notNull(),
+    full_name: text('full_name'),
+    phone: text('phone'),
+    created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 // --- PHASE 0: MVP ---
@@ -25,8 +28,8 @@ export const productCatalog = pgTable('product_catalog', {
     warranty_months: integer('warranty_months').notNull(),
     status: varchar('status', { length: 20 }).default('active').notNull(),
     created_by: uuid('created_by').references(() => users.id),
-    created_at: timestamp('created_at').defaultNow().notNull(),
-    updated_at: timestamp('updated_at').defaultNow().notNull(),
+    created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const oems = pgTable('oems', {
@@ -39,7 +42,7 @@ export const oems = pgTable('oems', {
     bank_proof_url: text('bank_proof_url').notNull(),
     status: varchar('status', { length: 20 }).default('active').notNull(),
     created_by: uuid('created_by').references(() => users.id),
-    created_at: timestamp('created_at').defaultNow().notNull(),
+    created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const oemContacts = pgTable('oem_contacts', {
@@ -49,7 +52,7 @@ export const oemContacts = pgTable('oem_contacts', {
     contact_name: text('contact_name').notNull(),
     contact_phone: varchar('contact_phone', { length: 20 }).notNull(),
     contact_email: text('contact_email').notNull(),
-    created_at: timestamp('created_at').defaultNow().notNull(),
+    created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const inventory = pgTable('inventory', {
@@ -63,7 +66,7 @@ export const inventory = pgTable('inventory', {
     final_amount: decimal('final_amount', { precision: 12, scale: 2 }).notNull(),
     status: varchar('status', { length: 20 }).default('available').notNull(), // available, pdi_pending, sold, defective
     uploaded_by: uuid('uploaded_by').references(() => users.id),
-    uploaded_at: timestamp('uploaded_at').defaultNow().notNull(),
+    uploaded_at: timestamp('uploaded_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 // --- DEALER SALES ---
@@ -79,8 +82,11 @@ export const leads = pgTable('leads', {
     interested_in: jsonb('interested_in'), // Array of product IDs
     lead_status: varchar('lead_status', { length: 50 }).default('new').notNull(),
     uploader_id: varchar('uploader_id', { length: 255 }).references(() => users.id),
-    created_at: timestamp('created_at').defaultNow().notNull(),
-    updated_at: timestamp('updated_at').defaultNow().notNull(),
+    qualified_by: uuid('qualified_by').references(() => users.id),
+    qualified_at: timestamp('qualified_at'),
+    qualification_notes: text('qualification_notes'),
+    created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const leadAssignments = pgTable('lead_assignments', {
@@ -88,7 +94,7 @@ export const leadAssignments = pgTable('lead_assignments', {
     lead_id: varchar('lead_id', { length: 255 }).references(() => leads.id).notNull(),
     lead_owner: varchar('lead_owner', { length: 255 }).references(() => users.id).notNull(),
     assigned_by: varchar('assigned_by', { length: 255 }).references(() => users.id).notNull(),
-    created_at: timestamp('created_at').defaultNow().notNull(),
+    created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const deals = pgTable('deals', {
@@ -105,8 +111,8 @@ export const deals = pgTable('deals', {
     credit_period_months: integer('credit_period_months'),
     is_immutable: boolean('is_immutable').default(false).notNull(),
     created_by: varchar('created_by', { length: 255 }).references(() => users.id),
-    created_at: timestamp('created_at').defaultNow().notNull(),
-    updated_at: timestamp('updated_at').defaultNow().notNull(),
+    created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const approvals = pgTable('approvals', {
@@ -119,7 +125,7 @@ export const approvals = pgTable('approvals', {
     approver_id: varchar('approver_id', { length: 255 }).references(() => users.id),
     decision_at: timestamp('decision_at'),
     rejection_reason: text('rejection_reason'),
-    created_at: timestamp('created_at').defaultNow().notNull(),
+    created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const slas = pgTable('slas', {
@@ -133,7 +139,7 @@ export const slas = pgTable('slas', {
     completed_at: timestamp('completed_at'),
     escalated_to: varchar('escalated_to', { length: 255 }).references(() => users.id),
     escalated_at: timestamp('escalated_at'),
-    created_at: timestamp('created_at').defaultNow().notNull(),
+    created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 // --- PDI ---
@@ -168,6 +174,16 @@ export const pdiRecords = pgTable('pdi_records', {
     inspected_at: timestamp('inspected_at').notNull(),
 });
 
+export const auditLogs = pgTable('audit_logs', {
+    id: varchar('id', { length: 255 }).primaryKey(), // AUDIT-YYYYMMDD-SEQ
+    entity_type: varchar('entity_type', { length: 50 }).notNull(),
+    entity_id: varchar('entity_id', { length: 255 }).notNull(),
+    action: varchar('action', { length: 50 }).notNull(), // create, update, delete, approve, reject, assign, complete
+    changes: jsonb('changes'),
+    performed_by: uuid('performed_by').references(() => users.id).notNull(),
+    timestamp: timestamp('timestamp').defaultNow().notNull(),
+});
+
 // --- RELATIONS ---
 
 export const usersRelations = relations(users, ({ many }) => ({
@@ -181,6 +197,7 @@ export const usersRelations = relations(users, ({ many }) => ({
     approvalsHandled: many(approvals),
     slasAssigned: many(slas, { relationName: 'sla_assigned' }),
     slasEscalatedTo: many(slas, { relationName: 'sla_escalated' }),
+    leadsQualified: many(leads, { relationName: 'qualified_by_user' }),
 }));
 
 export const productCatalogRelations = relations(productCatalog, ({ one, many }) => ({
@@ -204,6 +221,7 @@ export const inventoryRelations = relations(inventory, ({ one }) => ({
 
 export const leadsRelations = relations(leads, ({ one, many }) => ({
     uploader: one(users, { fields: [leads.uploader_id], references: [users.id] }),
+    qualifiedBy: one(users, { fields: [leads.qualified_by], references: [users.id], relationName: 'qualified_by_user' }),
     assignments: many(leadAssignments),
     deals: many(deals),
 }));
