@@ -45,8 +45,18 @@ export default function BulkUploadPage() {
     };
 
     const downloadSample = () => {
-        const headers = ['hsn_code', 'serial_number', 'is_serialized', 'inventory_amount', 'gst_percent'];
-        const sampleRow = ['85076000', 'BAT-001', 'true', '15000', '18'];
+        const headers = [
+            'hsn_code', 'oem_name', 'inventory_amount', 'gst_percent',
+            'serial_number', 'is_serialized', 'iot_imei_no', 'warranty_months',
+            'manufacturing_date', 'expiry_date', 'batch_number',
+            'oem_invoice_number', 'oem_invoice_date', 'challan_number', 'challan_date', 'quantity', 'warehouse_location'
+        ];
+        const sampleRow = [
+            '85076000', 'Exide Industries', '15000', '18',
+            'BAT-001', 'true', 'IMEI1234567890', '12',
+            '2024-01-01', '2025-01-01', 'BATCH-001',
+            'INV-001', '2024-01-01', 'CH-001', '2024-01-01', '1', 'Warehouse A'
+        ];
         const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), sampleRow.join(',')].join('\n');
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
@@ -73,8 +83,11 @@ export default function BulkUploadPage() {
                             <p className="font-medium mb-1">Upload Instructions:</p>
                             <ul className="list-disc ml-4 space-y-1 text-blue-800">
                                 <li>Supported formats: <strong>.csv, .xlsx</strong></li>
-                                <li>Required Columns: <code>hsn_code</code>, <code>inventory_amount</code>, <code>gst_percent</code></li>
-                                <li>For Serialized Items: <code>is_serialized=true</code> and <code>serial_number</code> are required.</li>
+                                <li><strong>Required:</strong> <code>hsn_code</code>, <code>oem_name</code>, <code>inventory_amount</code>, <code>gst_percent</code>, <code>warranty_months</code></li>
+                                <li><strong>Serialized Items:</strong> <code>is_serialized=true</code> & <code>serial_number</code> are required.</li>
+                                <li><strong>IoT Items:</strong> <code>iot_imei_no</code> is required.</li>
+                                <li><strong>Dates (YYYY-MM-DD):</strong> <code>manufacturing_date</code>, <code>expiry_date</code>, <code>oem_invoice_date</code>.</li>
+                                <li><strong>Optional:</strong> <code>batch_number</code>, <code>warehouse_location</code>. Default quantity is 1.</li>
                             </ul>
                             <button
                                 onClick={downloadSample}

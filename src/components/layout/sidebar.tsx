@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, ShoppingCart, Users, FileText, LogOut, Phone, PieChart, Package, FileCheck, Landmark } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, Users, FileText, LogOut, Phone, PieChart, Package, FileCheck, Landmark, Briefcase, Building, Receipt, ClipboardCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const roleNavigation: Record<string, any[]> = {
@@ -57,6 +57,47 @@ const roleNavigation: Record<string, any[]> = {
             ]
         },
     ],
+    business_head: [
+        { section: 'OVERVIEW', items: [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard/business-head' }] },
+        {
+            section: 'MANAGEMENT', items: [
+                { id: 'approvals', label: 'Approvals', icon: FileCheck, href: '/dashboard/business-head/approvals' },
+                { id: 'credits', label: 'Credit Management', icon: Landmark, href: '/dashboard/business-head/credits' },
+            ]
+        },
+    ],
+    finance_controller: [
+        { section: 'OVERVIEW', items: [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard/finance-controller' }] },
+        {
+            section: 'FINANCE', items: [
+                { id: 'invoices', label: 'Invoices', icon: FileText, href: '/dashboard/finance-controller/invoices' },
+                { id: 'payments', label: 'Payments', icon: Landmark, href: '/dashboard/finance-controller/payments' },
+                { id: 'credits', label: 'Credits', icon: Briefcase, href: '/dashboard/finance-controller/credits' },
+            ]
+        },
+    ],
+    sales_order_manager: [
+        { section: 'OVERVIEW', items: [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard/sales-order-manager' }] },
+        {
+            section: 'OPERATIONS', items: [
+                { id: 'oem-onboarding', label: 'OEM Onboarding', icon: Building, href: '/dashboard/sales-order-manager/oem-onboarding' },
+                { id: 'provisions', label: 'Provisions', icon: FileText, href: '/dashboard/sales-order-manager/provisions' },
+                { id: 'orders', label: 'Orders', icon: ShoppingCart, href: '/dashboard/sales-order-manager/orders' },
+                { id: 'pi-invoices', label: 'PI & Invoices', icon: Receipt, href: '/dashboard/sales-order-manager/pi-invoices' },
+            ]
+        },
+    ],
+    dealer: [
+        { section: 'OVERVIEW', items: [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard/dealer-portal' }] },
+        {
+            section: 'ORDERS', items: [
+                { id: 'my-orders', label: 'My Orders', icon: ShoppingCart, href: '/dashboard/dealer-portal/orders' },
+            ]
+        },
+    ],
+    user: [
+        { section: 'OVERVIEW', items: [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' }] }
+    ]
 };
 
 import { useAuth } from '@/components/auth/AuthProvider';
@@ -69,8 +110,8 @@ export function Sidebar() {
         return <div className="w-64 bg-slate-50/50 h-full border-r border-gray-100 hidden md:flex animate-pulse" />;
     }
 
-    const userRole = user.role;
-    const menuItems = roleNavigation[userRole] || [];
+    const userRole = (user.role || 'user').toLowerCase();
+    const menuItems = roleNavigation[userRole] || roleNavigation['user'] || [];
 
     return (
         <div className="w-64 bg-slate-50/50 h-full border-r border-gray-100 flex flex-col fixed left-0 top-0 z-10 hidden md:flex">

@@ -12,6 +12,10 @@ type InventoryItem = {
     gst_amount: number;
     final_amount: number;
     uploaded_at: string;
+    iot_imei_no: string | null;
+    oem_invoice_number: string | null; // Renamed
+    warehouse_location: string | null; // Added
+    oem_id: string;
     product: {
         hsn_code: string;
         asset_category: string;
@@ -59,6 +63,9 @@ export default function InventoryList() {
             'Type': item.product.asset_type,
             'Model': item.product.model_type,
             'Status': item.status,
+            'IMEI': item.iot_imei_no || 'N/A',
+            'OEM Invoice No': item.oem_invoice_number || '-',
+            'Warehouse': item.warehouse_location || '-',
             'Amount': item.inventory_amount,
             'GST': item.gst_amount,
             'Total': item.final_amount,
@@ -114,7 +121,10 @@ export default function InventoryList() {
                         <tr>
                             <th className="px-6 py-4 font-medium tracking-wider">Serial No</th>
                             <th className="px-6 py-4 font-medium tracking-wider">Model</th>
-                            <th className="px-6 py-4 font-medium tracking-wider">Type</th>
+                            <th className="px-6 py-4 font-medium tracking-wider">Cat / Type</th>
+                            <th className="px-6 py-4 font-medium tracking-wider">IMEI</th>
+                            <th className="px-6 py-4 font-medium tracking-wider">OEM Inv.</th>
+                            <th className="px-6 py-4 font-medium tracking-wider">Location</th>
                             <th className="px-6 py-4 font-medium tracking-wider">Status</th>
                             <th className="px-6 py-4 font-medium tracking-wider">Amount</th>
                             <th className="px-6 py-4 font-medium tracking-wider">Date</th>
@@ -122,15 +132,18 @@ export default function InventoryList() {
                     </thead>
                     <tbody>
                         {loading ? (
-                            <tr><td colSpan={6} className="text-center py-8 text-gray-400">Loading...</td></tr>
+                            <tr><td colSpan={9} className="text-center py-8 text-gray-400">Loading...</td></tr>
                         ) : items.length === 0 ? (
-                            <tr><td colSpan={6} className="text-center py-8 text-gray-400">No records found</td></tr>
+                            <tr><td colSpan={9} className="text-center py-8 text-gray-400">No records found</td></tr>
                         ) : (
                             items.map((item) => (
                                 <tr key={item.id} className="table-row-parcel group">
                                     <td className="px-6 py-4 font-medium text-gray-900">{item.serial_number || '-'}</td>
                                     <td className="px-6 py-4 text-gray-600">{item.product.model_type}</td>
                                     <td className="px-6 py-4 text-gray-500">{item.product.asset_category} - {item.product.asset_type}</td>
+                                    <td className="px-6 py-4 text-gray-500 font-mono text-xs">{item.iot_imei_no || '-'}</td>
+                                    <td className="px-6 py-4 text-gray-500">{item.oem_invoice_number || '-'}</td>
+                                    <td className="px-6 py-4 text-gray-500">{item.warehouse_location || '-'}</td>
                                     <td className="px-6 py-4">
                                         <span className={`status-pill ${item.status === 'available' ? 'bg-surface-teal text-brand-700' : 'bg-gray-100 text-gray-600'}`}>
                                             {item.status}

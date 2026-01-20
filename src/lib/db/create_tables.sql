@@ -5,7 +5,6 @@ CREATE TABLE IF NOT EXISTS users (
     name text NOT NULL,
     email text NOT NULL UNIQUE,
     role varchar(50) NOT NULL,
-    clerk_id varchar(255) UNIQUE,
     status varchar(20) DEFAULT 'active',
     created_at timestamp DEFAULT now() NOT NULL
 );

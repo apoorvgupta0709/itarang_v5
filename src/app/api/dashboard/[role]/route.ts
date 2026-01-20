@@ -3,18 +3,18 @@ import { users, leads, leadAssignments, deals, inventory, orders } from '@/lib/d
 import { eq, gte, sql, and, desc, count } from 'drizzle-orm';
 import { requireAuth } from '@/lib/auth-utils';
 import { successResponse, withErrorHandler } from '@/lib/api-utils';
-import { startOfMonth } from 'date-fns';
 
-export const GET = withErrorHandler(async (req: Request, { params }: { params: { role: string } }) => {
+export const GET = withErrorHandler(async (req: Request, { params }: { params: Promise<{ role: string }> }) => {
     const user = await requireAuth();
-    const role = params.role;
+    const { role } = await params;
 
     // Verify requesting user role or CEO access
     if (user.role !== role && user.role !== 'ceo') {
         throw new Error('Forbidden: You can only access your own dashboard metrics');
     }
 
-    const startOfMonthDate = startOfMonth(new Date());
+    const now = new Date();
+    const startOfMonthDate = new Date(now.getFullYear(), now.getMonth(), 1);
 
     if (role === 'ceo') {
         // 1. Revenue MTD
