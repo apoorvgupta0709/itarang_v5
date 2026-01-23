@@ -24,6 +24,11 @@ export function withErrorHandler(handler: Function) {
         try {
             return await handler(req, context);
         } catch (error: any) {
+            // Re-throw Next.js redirect errors
+            if (error.digest?.startsWith('NEXT_REDIRECT')) {
+                throw error;
+            }
+
             console.error('API Error:', error);
             if (error instanceof ZodError) {
                 return NextResponse.json({

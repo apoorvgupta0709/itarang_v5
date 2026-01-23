@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { leads, auditLogs } from '@/lib/db/schema';
+import { leads, auditLogs, slas } from '@/lib/db/schema';
 import { withErrorHandler, successResponse, errorResponse, generateId } from '@/lib/api-utils';
 import { requireRole } from '@/lib/auth-utils';
 import { z } from 'zod';
@@ -32,25 +32,43 @@ export const POST = withErrorHandler(async (req: Request) => {
     const data = result.data;
 
     const leadId = await generateId('LEAD', leads);
+    const slaId = await generateId('SLA', slas);
 
-    await db.insert(leads).values({
-        id: leadId,
-        ...data,
-        uploader_id: user.id,
-        lead_status: 'new',
-        created_at: new Date(),
-        updated_at: new Date(),
-    });
+    await db.transaction(async (tx) => {
+        await tx.insert(leads).values({
+            id: leadId,
+            ...data,
+            investment_capacity: data.investment_capacity?.toString(),
+            uploader_id: user.id,
+            lead_status: 'new',
+            created_at: new Date(),
+            updated_at: new Date(),
+        });
 
-    // Audit Log
-    await db.insert(auditLogs).values({
-        id: await generateId('AUDIT', auditLogs),
-        entity_type: 'lead',
-        entity_id: leadId,
-        action: 'create',
-        changes: data as any,
-        performed_by: user.id,
-        timestamp: new Date(),
+        // Initialize SLA (SOP 11.1: Every lead MUST have an SLA assigned)
+        const deadline = new Date();
+        deadline.setHours(deadline.getHours() + 1); // 1 hour for first call/assignment
+
+        await tx.insert(slas).values({
+            id: slaId,
+            entity_type: 'lead',
+            entity_id: leadId,
+            workflow_step: 'lead_first_call',
+            status: 'active',
+            sla_deadline: deadline,
+            assigned_to: user.id, // Initial assignment to uploader
+        });
+
+        // Audit Log
+        await tx.insert(auditLogs).values({
+            id: await generateId('AUDIT', auditLogs),
+            entity_type: 'lead',
+            entity_id: leadId,
+            action: 'create',
+            changes: { ...data, sla_initialized: true } as any,
+            performed_by: user.id,
+            timestamp: new Date(),
+        });
     });
 
     return successResponse({ id: leadId, message: 'Lead created successfully' }, 201);

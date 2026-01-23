@@ -1,9 +1,10 @@
 import { db } from '@/lib/db';
-import { leads, leadAssignments, assignmentChangeLogs } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { leads, leadAssignments, assignmentChangeLogs, slas } from '@/lib/db/schema';
+import { eq, and } from 'drizzle-orm';
 import { withErrorHandler, successResponse, errorResponse, generateId } from '@/lib/api-utils';
 import { requireRole } from '@/lib/auth-utils';
 import { z } from 'zod';
+import { triggerN8nWebhook } from '@/lib/n8n';
 
 const assignSchema = z.object({
     lead_owner: z.string().uuid().optional(),
@@ -54,6 +55,26 @@ export const POST = withErrorHandler(async (req: Request, { params }: { params: 
             changed_by: user.id,
             changed_at: new Date()
         });
+
+        // Trigger Notification
+        await triggerN8nWebhook('lead-assigned', {
+            lead_id: leadId,
+            assigned_user_id: lead_owner,
+            assignment_type: 'owner',
+            assigned_by: user.id
+        });
+
+        // Complete SLA (SOP 11.1)
+        await db.update(slas)
+            .set({
+                status: 'completed',
+                completed_at: new Date()
+            })
+            .where(and(
+                eq(slas.entity_id, leadId),
+                eq(slas.workflow_step, 'lead_first_call'),
+                eq(slas.status, 'active')
+            ));
     }
 
     // 2. Assigning Actor
@@ -86,6 +107,14 @@ export const POST = withErrorHandler(async (req: Request, { params }: { params: 
             new_user_id: lead_actor,
             changed_by: user.id,
             changed_at: new Date()
+        });
+
+        // Trigger Notification
+        await triggerN8nWebhook('lead-assigned', {
+            lead_id: leadId,
+            assigned_user_id: lead_actor,
+            assignment_type: 'actor',
+            assigned_by: user.id
         });
     }
 

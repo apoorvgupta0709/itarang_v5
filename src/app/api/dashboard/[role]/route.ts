@@ -79,30 +79,68 @@ export const GET = withErrorHandler(async (req: Request, { params }: { params: P
     }
 
     if (role === 'business_head') {
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+        // 1. Core stats
         const [stats] = await db
             .select({
                 activeLeads: count(),
-                pendingApprovals: sql<number>`COUNT(*) FILTER (WHERE lead_status = 'qualified')`,
+                pendingApprovals: sql<number>`COUNT(*) FILTER (WHERE lead_status = 'qualified' OR lead_status = 'pending_l1_approval')`,
+                conversions: sql<number>`COUNT(*) FILTER (WHERE lead_status = 'converted')`,
             })
             .from(leads);
+
+        // 2. Lead Trend (Last 4 weeks)
+        const weeklyTrend = await db.execute(sql`
+            SELECT 
+                DATE_TRUNC('week', created_at) as week,
+                COUNT(*) as total,
+                COUNT(*) FILTER (WHERE lead_status IN ('qualified', 'converted')) as qualified
+            FROM leads
+            WHERE created_at >= NOW() - INTERVAL '4 weeks'
+            GROUP BY 1
+            ORDER BY 1 ASC
+        `);
+
+        // 3. Category Stats
+        const categoryStats = await db.execute(sql`
+            SELECT 
+                COALESCE(pc.asset_category, 'Unknown') as name,
+                COUNT(l.id) as count
+            FROM leads l
+            CROSS JOIN LATERAL jsonb_array_elements_text(l.interested_in) as interested_id
+            LEFT JOIN product_catalog pc ON pc.id = interested_id
+            GROUP BY 1
+            ORDER BY 2 DESC
+        `);
+
+        // 4. Level 2 Approval Queue (Sample for the integrated table)
+        const approvalQueue = await db
+            .select({
+                id: deals.id,
+                oem: sql<string>`'Sample OEM'`, // Placeholder until join fixed
+                value: deals.total_payable,
+                item: sql<string>`'Sample Item'`, // Placeholder
+                status: deals.deal_status,
+                created_at: deals.created_at
+            })
+            .from(deals)
+            .where(eq(deals.deal_status, 'pending_approval_l2'))
+            .limit(5);
 
         return successResponse({
             activeLeads: stats?.activeLeads || 0,
             pendingApprovals: stats?.pendingApprovals || 0,
-            conversionRate: 18.5,
-            avgQualificationTime: '1.8 Days',
-            leadTrend: [
-                { name: 'Week 1', total: 45, qualified: 28 },
-                { name: 'Week 2', total: 52, qualified: 32 },
-                { name: 'Week 3', total: 48, qualified: 30 },
-                { name: 'Week 4', total: 61, qualified: 42 },
-            ],
-            categoryStats: [
-                { name: '3W Li-ion', count: 145 },
-                { name: '2W Li-ion', count: 88 },
-                { name: 'L5 High Speed', count: 56 },
-                { name: 'E-Rickshaw Standard', count: 123 },
-            ],
+            conversionRate: stats?.activeLeads ? ((stats.conversions / stats.activeLeads) * 100).toFixed(1) : 0,
+            avgQualificationTime: '1.8 Days', // Still mock for now
+            leadTrend: weeklyTrend.map(w => ({
+                name: new Date(w.week as string).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                total: w.total,
+                qualified: w.qualified
+            })),
+            categoryStats: categoryStats,
+            approvalQueue: approvalQueue,
             lastUpdated: new Date().toISOString()
         });
     }
@@ -128,6 +166,7 @@ export const GET = withErrorHandler(async (req: Request, { params }: { params: P
     }
 
     if (role === 'finance_controller') {
+        // 1. Core Receivables Stats
         const [financeStats] = await db
             .select({
                 unpaidOrders: count(sql`CASE WHEN payment_status = 'unpaid' THEN 1 END`),
@@ -135,16 +174,45 @@ export const GET = withErrorHandler(async (req: Request, { params }: { params: P
             })
             .from(orders);
 
+        // 2. Pending Approvals (Level 3)
+        const [approvalStats] = await db
+            .select({ pending: count() })
+            .from(deals)
+            .where(eq(deals.deal_status, 'pending_approval_l3'));
+
+        // 3. Aging Data
+        const agingBuckets = await db.execute(sql`
+            SELECT 
+                CASE 
+                    WHEN created_at >= NOW() - INTERVAL '30 days' THEN '0-30 Days'
+                    WHEN created_at >= NOW() - INTERVAL '60 days' THEN '31-60 Days'
+                    WHEN created_at >= NOW() - INTERVAL '90 days' THEN '61-90 Days'
+                    ELSE '90+ Days'
+                END as name,
+                SUM(total_amount) as amount
+            FROM orders
+            WHERE payment_status = 'unpaid'
+            GROUP BY 1
+        `);
+
+        // 4. Invoicing Queue
+        const invoicingQueue = await db
+            .select({
+                id: deals.id,
+                name: sql<string>`'Sample Customer'`, // Placeholder
+                amount: deals.total_payable,
+                date: deals.created_at
+            })
+            .from(deals)
+            .where(eq(deals.deal_status, 'payment_awaited'))
+            .limit(10);
+
         return successResponse({
-            pendingApprovals: 8,
+            pendingApprovals: approvalStats?.pending || 0,
             receivablesTotal: financeStats?.totalReceivables || 0,
             unpaidOrders: financeStats?.unpaidOrders || 0,
-            agingData: [
-                { name: '0-30 Days', Amount: 42.5 },
-                { name: '31-60 Days', Amount: 24.2 },
-                { name: '61-90 Days', Amount: 12.8 },
-                { name: '90+ Days', Amount: 4.7 },
-            ],
+            agingData: agingBuckets,
+            invoicingQueue: invoicingQueue,
             lastUpdated: new Date().toISOString()
         });
     }

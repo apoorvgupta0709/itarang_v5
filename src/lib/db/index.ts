@@ -13,4 +13,5 @@ const queryClient = postgres(connectionString, {
     ssl: 'require',
     prepare: false, // Recommended for Supabase
 });
+
 export const db = drizzle(queryClient, { schema });

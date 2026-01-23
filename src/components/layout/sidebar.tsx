@@ -8,39 +8,39 @@ import { cn } from '@/lib/utils';
 
 const roleNavigation: Record<string, any[]> = {
     ceo: [
-        { section: 'OVERVIEW', items: [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard/ceo' }] },
+        { section: 'OVERVIEW', items: [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/ceo' }] },
         {
             section: 'BUSINESS', items: [
                 { id: 'product-catalog', label: 'Product Catalog', icon: Package, href: '/product-catalog' },
                 { id: 'oems', label: 'OEMs', icon: Landmark, href: '/oem-onboarding' },
                 { id: 'inventory-reports', label: 'Inventory', icon: PieChart, href: '/inventory' },
-                { id: 'leads', label: 'Leads', icon: Users, href: '/sales/leads' },
-                { id: 'deals', label: 'Deals', icon: FileCheck, href: '/sales/deals' },
+                { id: 'leads', label: 'Leads', icon: Users, href: '/leads' },
+                { id: 'deals', label: 'Deals', icon: FileCheck, href: '/deals' },
             ]
         },
     ],
     sales_head: [
-        { section: 'OVERVIEW', items: [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard/sales-head' }] },
+        { section: 'OVERVIEW', items: [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/sales-head' }] },
         {
             section: 'SALES', items: [
-                { id: 'leads', label: 'Leads', icon: Users, href: '/sales/leads' },
-                { id: 'deals', label: 'Deals', icon: FileCheck, href: '/sales/deals' },
-                { id: 'approvals', label: 'Approvals', icon: FileText, href: '/dashboard/sales-head/approvals' },
+                { id: 'leads', label: 'Leads', icon: Users, href: '/leads' },
+                { id: 'deals', label: 'Deals', icon: FileCheck, href: '/deals' },
+                { id: 'approvals', label: 'Approvals', icon: FileText, href: '/sales-head/approvals' },
             ]
         },
     ],
     sales_manager: [
-        { section: 'OVERVIEW', items: [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard/sales-manager' }] },
+        { section: 'OVERVIEW', items: [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/sales-manager' }] },
         {
             section: 'SALES', items: [
-                { id: 'leads', label: 'My Leads', icon: Users, href: '/sales/leads' },
-                { id: 'deals', label: 'My Deals', icon: FileCheck, href: '/sales/deals' },
-                { id: 'ai-calls', label: 'AI Calls', icon: Phone, href: '/dashboard/sales-manager/ai-calls' },
+                { id: 'leads', label: 'My Leads', icon: Users, href: '/leads' },
+                { id: 'deals', label: 'My Deals', icon: FileCheck, href: '/deals' },
+                { id: 'ai-calls', label: 'AI Calls', icon: Phone, href: '/sales-manager/ai-calls' },
             ]
         },
     ],
     inventory_manager: [
-        { section: 'OVERVIEW', items: [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard/inventory-manager' }] },
+        { section: 'OVERVIEW', items: [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/inventory-manager' }] },
         {
             section: 'INVENTORY', items: [
                 { id: 'product-catalog', label: 'Product Catalog', icon: Package, href: '/product-catalog' },
@@ -50,53 +50,62 @@ const roleNavigation: Record<string, any[]> = {
         },
     ],
     service_engineer: [
-        { section: 'OVERVIEW', items: [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard/service-engineer' }] },
+        { section: 'OVERVIEW', items: [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/service-engineer' }] },
         {
             section: 'PDI', items: [
-                { id: 'pdi-queue', label: 'PDI Queue', icon: FileCheck, href: '/dashboard/service-engineer/pdi-queue' },
+                { id: 'pdi-queue', label: 'PDI Queue', icon: FileCheck, href: '/service-engineer/pdi-queue' },
             ]
         },
     ],
     business_head: [
-        { section: 'OVERVIEW', items: [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard/business-head' }] },
+        { section: 'OVERVIEW', items: [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/business-head' }] },
         {
             section: 'MANAGEMENT', items: [
-                { id: 'approvals', label: 'Approvals', icon: FileCheck, href: '/dashboard/business-head/approvals' },
-                { id: 'credits', label: 'Credit Management', icon: Landmark, href: '/dashboard/business-head/credits' },
+                { id: 'approvals', label: 'Approvals', icon: FileCheck, href: '/business-head/approvals' },
+                { id: 'credits', label: 'Credit Management', icon: Landmark, href: '/business-head/credits' },
             ]
         },
     ],
     finance_controller: [
-        { section: 'OVERVIEW', items: [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard/finance-controller' }] },
+        { section: 'OVERVIEW', items: [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/finance-controller' }] },
         {
             section: 'FINANCE', items: [
-                { id: 'invoices', label: 'Invoices', icon: FileText, href: '/dashboard/finance-controller/invoices' },
-                { id: 'payments', label: 'Payments', icon: Landmark, href: '/dashboard/finance-controller/payments' },
-                { id: 'credits', label: 'Credits', icon: Briefcase, href: '/dashboard/finance-controller/credits' },
+                { id: 'invoices', label: 'Invoices', icon: FileText, href: '/finance-controller/invoices' },
+                { id: 'payments', label: 'Payments', icon: Landmark, href: '/finance-controller/payments' },
+                { id: 'credits', label: 'Credits', icon: Briefcase, href: '/finance-controller/credits' },
             ]
         },
     ],
     sales_order_manager: [
-        { section: 'OVERVIEW', items: [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard/sales-order-manager' }] },
+        { section: 'OVERVIEW', items: [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/sales-order-manager' }] },
         {
             section: 'OPERATIONS', items: [
-                { id: 'oem-onboarding', label: 'OEM Onboarding', icon: Building, href: '/dashboard/sales-order-manager/oem-onboarding' },
-                { id: 'provisions', label: 'Provisions', icon: FileText, href: '/dashboard/sales-order-manager/provisions' },
-                { id: 'orders', label: 'Orders', icon: ShoppingCart, href: '/dashboard/sales-order-manager/orders' },
-                { id: 'pi-invoices', label: 'PI & Invoices', icon: Receipt, href: '/dashboard/sales-order-manager/pi-invoices' },
+                { id: 'oem-onboarding', label: 'OEM Onboarding', icon: Building, href: '/sales-order-manager/oem-onboarding' },
+                { id: 'provisions', label: 'Provisions', icon: FileText, href: '/sales-order-manager/provisions' },
+                { id: 'orders', label: 'Orders', icon: ShoppingCart, href: '/sales-order-manager/orders' },
+                { id: 'pi-invoices', label: 'PI & Invoices', icon: Receipt, href: '/sales-order-manager/pi-invoices' },
+            ]
+        },
+    ],
+    sales_executive: [
+        { section: 'OVERVIEW', items: [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/sales-executive' }] },
+        {
+            section: 'SALES', items: [
+                { id: 'leads', label: 'My Leads', icon: Users, href: '/leads' },
+                { id: 'deals', label: 'My Deals', icon: FileCheck, href: '/deals' },
             ]
         },
     ],
     dealer: [
-        { section: 'OVERVIEW', items: [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard/dealer-portal' }] },
+        { section: 'OVERVIEW', items: [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/dealer-portal' }] },
         {
             section: 'ORDERS', items: [
-                { id: 'my-orders', label: 'My Orders', icon: ShoppingCart, href: '/dashboard/dealer-portal/orders' },
+                { id: 'my-orders', label: 'My Orders', icon: ShoppingCart, href: '/dealer-portal/orders' },
             ]
         },
     ],
     user: [
-        { section: 'OVERVIEW', items: [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/dashboard' }] }
+        { section: 'OVERVIEW', items: [{ id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/' }] }
     ]
 };
 

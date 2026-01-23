@@ -10,6 +10,7 @@ interface User {
     id: string;
     name: string;
     email: string;
+    role: string;
 }
 
 interface LeadAssignmentProps {
@@ -61,6 +62,13 @@ export default function LeadAssignment({
         }
     };
 
+    // Filter users by role
+    const salesRoles = ['sales_head', 'sales_manager', 'sales_executive', 'business_head', 'ceo'];
+    const executionalRoles = ['sales_manager', 'sales_executive'];
+
+    const ownerOptions = users.filter(u => salesRoles.includes(u.role));
+    const actorOptions = users.filter(u => executionalRoles.includes(u.role));
+
     if (!canAssignOwner && !canAssignActor) return null;
 
     return (
@@ -70,7 +78,10 @@ export default function LeadAssignment({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Owner Assignment */}
                 <div className="space-y-3">
-                    <Label>Lead Owner (Accountable)</Label>
+                    <Label className="flex justify-between">
+                        <span>Lead Owner (Accountable)</span>
+                        <span className="text-[10px] text-gray-400 uppercase">Sales Roles</span>
+                    </Label>
                     <div className="flex gap-2">
                         <Select
                             value={selectedOwner}
@@ -79,15 +90,15 @@ export default function LeadAssignment({
                             className="bg-white"
                         >
                             <option value="">Select Owner</option>
-                            {users.map(u => (
-                                <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+                            {ownerOptions.map(u => (
+                                <option key={u.id} value={u.id}>{u.name} ({u.role.replace('_', ' ')})</option>
                             ))}
                         </Select>
                         {canAssignOwner && (
                             <Button
                                 size="sm"
                                 onClick={() => handleAssign('owner')}
-                                disabled={loading || selectedOwner === currentOwnerId}
+                                disabled={loading || !selectedOwner || selectedOwner === currentOwnerId}
                             >
                                 Assign
                             </Button>
@@ -98,7 +109,10 @@ export default function LeadAssignment({
 
                 {/* Actor Assignment */}
                 <div className="space-y-3">
-                    <Label>Lead Actor (Executional)</Label>
+                    <Label className="flex justify-between">
+                        <span>Lead Actor (Executional)</span>
+                        <span className="text-[10px] text-gray-400 uppercase">Exec/Mgr Only</span>
+                    </Label>
                     <div className="flex gap-2">
                         <Select
                             value={selectedActor}
@@ -107,15 +121,15 @@ export default function LeadAssignment({
                             className="bg-white"
                         >
                             <option value="">Select Actor</option>
-                            {users.map(u => (
-                                <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+                            {actorOptions.map(u => (
+                                <option key={u.id} value={u.id}>{u.name} ({u.role.replace('_', ' ')})</option>
                             ))}
                         </Select>
                         {canAssignActor && (
                             <Button
                                 size="sm"
                                 onClick={() => handleAssign('actor')}
-                                disabled={loading || selectedActor === currentActorId}
+                                disabled={loading || !selectedActor || selectedActor === currentActorId}
                             >
                                 Assign
                             </Button>

@@ -1,16 +1,16 @@
-import { pgTable, text, timestamp, integer, boolean, varchar, decimal, jsonb, uuid } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, integer, boolean, varchar, decimal, jsonb, uuid, index } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 // --- FOUNDATION ---
 
 export const users = pgTable('users', {
     id: uuid('id').primaryKey(),
-    name: text('name').notNull(),
     email: text('email').notNull().unique(),
-    role: varchar('role', { length: 50 }).notNull(), // sales_manager, sales_head, business_head, ceo, finance_controller, inventory_manager, service_engineer, sales_order_manager
-    status: varchar('status', { length: 20 }).default('active'),
-    full_name: text('full_name'),
+    name: text('name').notNull(),
+    role: varchar('role', { length: 50 }).notNull(), // ceo, business_head, sales_head, sales_manager, sales_executive, finance_controller, inventory_manager, service_engineer
     phone: text('phone'),
+    avatar_url: text('avatar_url'),
+    is_active: boolean('is_active').notNull().default(true),
     created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
@@ -28,28 +28,33 @@ export const productCatalog = pgTable('product_catalog', {
     status: varchar('status', { length: 20 }).default('active').notNull(),
     created_by: uuid('created_by').references(() => users.id),
     created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-    updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-    disabled_at: timestamp('disabled_at', { withTimezone: true }), // Added SOP 7.1
-    disabled_by: uuid('disabled_by').references(() => users.id),   // Added SOP 7.1
+    disabled_at: timestamp('disabled_at', { withTimezone: true }),
+    disabled_by: uuid('disabled_by').references(() => users.id),
 });
 
 export const oems = pgTable('oems', {
     id: varchar('id', { length: 255 }).primaryKey(), // OEM-YYYYMMDD-SEQ
     business_entity_name: text('business_entity_name').notNull(),
     gstin: varchar('gstin', { length: 15 }).notNull().unique(),
-    pan: varchar('pan', { length: 10 }), // Added SOP 7.2
-    cin: varchar('cin', { length: 21 }), // Made optional as PAN is preferred
+    pan: varchar('pan', { length: 10 }),
+    address_line1: text('address_line1'),
+    address_line2: text('address_line2'),
+    city: text('city'),
+    state: text('state'),
+    pincode: varchar('pincode', { length: 6 }),
+    bank_name: text('bank_name'),
     bank_account_number: text('bank_account_number').notNull(),
     ifsc_code: varchar('ifsc_code', { length: 11 }).notNull(),
-    bank_proof_url: text('bank_proof_url').notNull(),
+    bank_proof_url: text('bank_proof_url'),
     status: varchar('status', { length: 20 }).default('active').notNull(),
     created_by: uuid('created_by').references(() => users.id),
     created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const oemContacts = pgTable('oem_contacts', {
     id: varchar('id', { length: 255 }).primaryKey(), // OEM_ID-ROLE_SEQ
-    oem_id: varchar('oem_id', { length: 255 }).references(() => oems.id).notNull(),
+    oem_id: varchar('oem_id', { length: 255 }).references(() => oems.id, { onDelete: 'cascade' }).notNull(),
     contact_role: varchar('contact_role', { length: 50 }).notNull(), // sales_head, sales_manager, finance_manager
     contact_name: text('contact_name').notNull(),
     contact_phone: varchar('contact_phone', { length: 20 }).notNull(),
@@ -58,79 +63,105 @@ export const oemContacts = pgTable('oem_contacts', {
 });
 
 export const inventory = pgTable('inventory', {
-    id: varchar('id', { length: 255 }).primaryKey(), // INV-YYYYMMDD-SEQ
+    id: varchar('id', { length: 255 }).primaryKey(), // INV-YYYYMMDD-XXX
     product_id: varchar('product_id', { length: 255 }).references(() => productCatalog.id).notNull(),
     oem_id: varchar('oem_id', { length: 255 }).references(() => oems.id).notNull(),
 
     // Denormalized Product Details (SOP 7.4)
-    oem_name: text('oem_name'), // Added
-    asset_category: text('asset_category'), // Added
-    asset_type: text('asset_type'), // Added
-    model_type: text('model_type'), // Added
+    oem_name: text('oem_name').notNull(),
+    asset_category: text('asset_category').notNull(),
+    asset_type: text('asset_type').notNull(),
+    model_type: text('model_type').notNull(),
 
-    // Asset Identifiers
-    serial_number: varchar('serial_number', { length: 255 }),
-    batch_number: varchar('batch_number', { length: 255 }), // Added SOP 7.4
+    // Serialization
     is_serialized: boolean('is_serialized').default(true).notNull(),
-    iot_imei_no: varchar('iot_imei_no', { length: 255 }),
+    serial_number: varchar('serial_number', { length: 255 }).unique(),
+    batch_number: varchar('batch_number', { length: 255 }),
+    quantity: integer('quantity'),
 
-    // Purchase Details
-    quantity: integer('quantity').default(1).notNull(),
-    warranty_months: integer('warranty_months').notNull(),
-    manufacturing_date: timestamp('manufacturing_date'), // Added SOP 7.4
-    expiry_date: timestamp('expiry_date'), // Added SOP 7.4
-
-    // Invoice / Challan
-    oem_invoice_number: text('oem_invoice_number'), // Renamed from invoice_number
-    oem_invoice_date: timestamp('oem_invoice_date'), // Renamed from invoice_date
-    oem_invoice_url: text('oem_invoice_url'), // Added SOP 7.4
-    challan_number: text('challan_number'),
-    challan_date: timestamp('challan_date'),
-
-    // Documents
-    product_manual_url: text('product_manual_url'), // Added SOP 7.4
-    warranty_document_url: text('warranty_document_url'), // Added SOP 7.4
+    // Dates
+    manufacturing_date: timestamp('manufacturing_date', { withTimezone: true }).notNull(),
+    expiry_date: timestamp('expiry_date', { withTimezone: true }).notNull(),
 
     // Financials
     inventory_amount: decimal('inventory_amount', { precision: 12, scale: 2 }).notNull(),
-    gst_percent: integer('gst_percent').notNull(),
+    gst_percent: decimal('gst_percent', { precision: 5, scale: 2 }).notNull(),
     gst_amount: decimal('gst_amount', { precision: 12, scale: 2 }).notNull(),
     final_amount: decimal('final_amount', { precision: 12, scale: 2 }).notNull(),
 
-    status: varchar('status', { length: 20 }).default('available').notNull(), // available, pdi_pending, sold, defective
-    warehouse_location: text('warehouse_location'), // Added SOP 7.4
-    uploaded_by: uuid('uploaded_by').references(() => users.id),
-    uploaded_at: timestamp('uploaded_at', { withTimezone: true }).defaultNow().notNull(),
+    // Invoicing
+    oem_invoice_number: text('oem_invoice_number').notNull(),
+    oem_invoice_date: timestamp('oem_invoice_date', { withTimezone: true }).notNull(),
+    oem_invoice_url: text('oem_invoice_url'),
+
+    // Documents
+    product_manual_url: text('product_manual_url'),
+    warranty_document_url: text('warranty_document_url'),
+
+    // Status
+    status: varchar('status', { length: 20 }).default('in_transit').notNull(), // in_transit, pdi_pending, pdi_failed, available, reserved, sold, damaged, returned
+    warehouse_location: text('warehouse_location'),
+
+    // Metadata
+    created_by: uuid('created_by').references(() => users.id).notNull(),
+    created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 // --- DEALER SALES ---
 
 export const leads = pgTable('leads', {
     id: varchar('id', { length: 255 }).primaryKey(), // LEAD-YYYYMMDD-SEQ
-    lead_source: varchar('lead_source', { length: 50 }).notNull(),
+    lead_source: varchar('lead_source', { length: 50 }).notNull(), // call_center, ground_sales, digital_marketing, database_upload, dealer_referral
+    interest_level: varchar('interest_level', { length: 20 }).default('cold').notNull(), // cold, warm, hot
+    lead_status: varchar('lead_status', { length: 50 }).default('new').notNull(), // new, assigned, contacted, qualified, converted, lost
+
+    // Dealer Info
     owner_name: text('owner_name').notNull(),
     owner_contact: varchar('owner_contact', { length: 20 }).notNull(),
+    business_name: text('business_name'),
+    owner_email: text('owner_email'),
+
+    // Location
     state: varchar('state', { length: 100 }).notNull(),
     city: varchar('city', { length: 100 }).notNull(),
-    interest_level: varchar('interest_level', { length: 20 }).notNull(), // cold, warm, hot
+    shop_address: text('shop_address'),
+
+    // Business Details
     interested_in: jsonb('interested_in'), // Array of product IDs
-    lead_status: varchar('lead_status', { length: 50 }).default('new').notNull(),
-    uploader_id: varchar('uploader_id', { length: 255 }).references(() => users.id),
+    battery_order_expected: integer('battery_order_expected'),
+    investment_capacity: decimal('investment_capacity', { precision: 12, scale: 2 }),
+    business_type: varchar('business_type', { length: 50 }), // retail, wholesale, distributor
+
+    // Qualification
     qualified_by: uuid('qualified_by').references(() => users.id),
-    qualified_at: timestamp('qualified_at'),
+    qualified_at: timestamp('qualified_at', { withTimezone: true }),
     qualification_notes: text('qualification_notes'),
+
+    // Conversion
+    converted_deal_id: varchar('converted_deal_id', { length: 255 }),
+    converted_at: timestamp('converted_at', { withTimezone: true }),
+
+    // Metadata
+    uploader_id: uuid('uploader_id').references(() => users.id).notNull(),
     created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => {
+    return {
+        leadsSourceIdx: index('leads_source_idx').on(table.lead_source),
+        leadsInterestIdx: index('leads_interest_idx').on(table.interest_level),
+        leadsStatusIdx: index('leads_status_idx').on(table.lead_status),
+    };
 });
 
 export const leadAssignments = pgTable('lead_assignments', {
     id: varchar('id', { length: 255 }).primaryKey(),
     lead_id: varchar('lead_id', { length: 255 }).references(() => leads.id).notNull(),
-    lead_owner: uuid('lead_owner').references(() => users.id).notNull(),
+    lead_owner: uuid('lead_owner').references(() => users.id).notNull(), // Sales Head MUST assign
     assigned_by: uuid('assigned_by').references(() => users.id).notNull(),
     assigned_at: timestamp('assigned_at', { withTimezone: true }).defaultNow().notNull(),
 
-    // Lead Actor (SOP 3.1)
+    // Lead Actor (Owner or Sales Head can assign)
     lead_actor: uuid('lead_actor').references(() => users.id),
     actor_assigned_by: uuid('actor_assigned_by').references(() => users.id),
     actor_assigned_at: timestamp('actor_assigned_at', { withTimezone: true }),
@@ -150,33 +181,61 @@ export const assignmentChangeLogs = pgTable('assignment_change_logs', {
 });
 
 export const deals = pgTable('deals', {
-    id: varchar('id', { length: 255 }).primaryKey(), // DEAL-YYYYMMDD-SEQ
+    id: varchar('id', { length: 255 }).primaryKey(), // DEAL-YYYYMMDD-XXX
     lead_id: varchar('lead_id', { length: 255 }).references(() => leads.id).notNull(),
+
+    // Products & Pricing
     products: jsonb('products').notNull(), // Array of { product_id, quantity, unit_price, gst_percent }
     line_total: decimal('line_total', { precision: 12, scale: 2 }).notNull(),
     gst_amount: decimal('gst_amount', { precision: 12, scale: 2 }).notNull(),
-    transportation_cost: decimal('transportation_cost', { precision: 12, scale: 2 }).default('0').notNull(),
+    transportation_cost: decimal('transportation_cost', { precision: 10, scale: 2 }).default('0').notNull(),
     transportation_gst_percent: integer('transportation_gst_percent').default(18).notNull(),
     total_payable: decimal('total_payable', { precision: 12, scale: 2 }).notNull(),
-    deal_status: varchar('deal_status', { length: 50 }).notNull(), // pending_approval_l1, pending_approval_l2, pending_approval_l3, payment_awaited, converted, rejected, expired
+
+    // Payment Terms
     payment_term: varchar('payment_term', { length: 20 }).notNull(), // cash, credit
     credit_period_months: integer('credit_period_months'),
+
+    // Status
+    deal_status: varchar('deal_status', { length: 50 }).default('pending_approval_l1').notNull(), // pending_approval_l1, pending_approval_l2, pending_approval_l3, approved, rejected, payment_awaited, converted, expired
+
+    // Immutability (after invoice)
     is_immutable: boolean('is_immutable').default(false).notNull(),
-    created_by: uuid('created_by').references(() => users.id),
+    invoice_number: text('invoice_number'),
+    invoice_url: text('invoice_url'),
+    invoice_issued_at: timestamp('invoice_issued_at', { withTimezone: true }),
+
+    // Expiry
+    expires_at: timestamp('expires_at', { withTimezone: true }),
+    expired_by: uuid('expired_by').references(() => users.id),
+    expired_at: timestamp('expired_at', { withTimezone: true }),
+    expiry_reason: text('expiry_reason'),
+
+    // Rejection
+    rejected_by: uuid('rejected_by').references(() => users.id),
+    rejected_at: timestamp('rejected_at', { withTimezone: true }),
+    rejection_reason: text('rejection_reason'),
+
+    created_by: uuid('created_by').references(() => users.id).notNull(),
     created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const approvals = pgTable('approvals', {
     id: varchar('id', { length: 255 }).primaryKey(),
-    entity_type: varchar('entity_type', { length: 50 }).notNull(), // deal, pi
+    entity_type: varchar('entity_type', { length: 50 }).notNull(), // deal, order, provision
     entity_id: varchar('entity_id', { length: 255 }).notNull(),
+
     level: integer('level').notNull(), // 1, 2, 3
-    approver_role: varchar('approver_role', { length: 50 }).notNull(),
-    status: varchar('status', { length: 20 }).default('pending').notNull(), // pending, approve, reject
+    approver_role: varchar('approver_role', { length: 50 }).notNull(), // sales_head, business_head, finance_controller
+
+    status: varchar('status', { length: 20 }).default('pending').notNull(), // pending, approved, rejected
+
     approver_id: uuid('approver_id').references(() => users.id),
-    decision_at: timestamp('decision_at'),
+    decision_at: timestamp('decision_at', { withTimezone: true }),
     rejection_reason: text('rejection_reason'),
+    comments: text('comments'),
+
     created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -213,43 +272,51 @@ export const slas = pgTable('slas', {
 // --- PDI ---
 
 export const oemInventoryForPDI = pgTable('oem_inventory_for_pdi', {
-    id: varchar('id', { length: 255 }).primaryKey(),
+    id: varchar('id', { length: 255 }).primaryKey(), // PDIREQ-YYYYMMDD-XXX
     provision_id: varchar('provision_id', { length: 255 }).notNull(),
-    product_id: varchar('product_id', { length: 255 }).references(() => productCatalog.id).notNull(),
-    oem_id: varchar('oem_id', { length: 255 }).references(() => oems.id).notNull(), // Added oem_id
+    inventory_id: varchar('inventory_id', { length: 255 }).references(() => inventory.id).notNull(),
     serial_number: varchar('serial_number', { length: 255 }),
-    pdi_status: varchar('pdi_status', { length: 20 }).default('pending').notNull(), // pending, completed
+    oem_id: varchar('oem_id', { length: 255 }).references(() => oems.id).notNull(),
+    pdi_status: varchar('pdi_status', { length: 20 }).default('pending').notNull(), // pending, in_progress, completed
     pdi_record_id: varchar('pdi_record_id', { length: 255 }),
-    inventory_id: varchar('inventory_id', { length: 255 }).references(() => inventory.id), // Added missing link to inventory
+    created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const pdiRecords = pgTable('pdi_records', {
-    id: varchar('id', { length: 255 }).primaryKey(),
+    id: varchar('id', { length: 255 }).primaryKey(), // PDI-YYYYMMDD-XXX
     oem_inventory_id: varchar('oem_inventory_id', { length: 255 }).references(() => oemInventoryForPDI.id).notNull(),
     provision_id: varchar('provision_id', { length: 255 }).notNull(),
+    service_engineer_id: uuid('service_engineer_id').references(() => users.id).notNull(),
+
+    // Physical Inspection
     iot_imei_no: varchar('iot_imei_no', { length: 255 }),
-    physical_condition: text('physical_condition').notNull(),
-    discharging_connector: varchar('discharging_connector', { length: 20 }).notNull(),
-    charging_connector: varchar('charging_connector', { length: 20 }).notNull(),
-    productor_sticker: varchar('productor_sticker', { length: 50 }).notNull(),
+    physical_condition: text('physical_condition').notNull(), // OK - No issues, Minor scratches, Damaged exterior, Severely damaged
+    discharging_connector: varchar('discharging_connector', { length: 20 }).notNull(), // SB75, SB50
+    charging_connector: varchar('charging_connector', { length: 20 }).notNull(), // SB75, SB50
+    productor_sticker: varchar('productor_sticker', { length: 50 }).notNull(), // Available - damage, Available - OK, Unavailable
+
+    // Technical Fields
     voltage: decimal('voltage', { precision: 5, scale: 2 }),
     soc: integer('soc'),
-    latitude: decimal('latitude', { precision: 10, scale: 6 }).notNull(),
-    longitude: decimal('longitude', { precision: 10, scale: 6 }).notNull(),
-    pdi_status: varchar('pdi_status', { length: 20 }).notNull(), // pass, fail
-    failure_reason: text('failure_reason'),
-
-    // Battery Specific Fields (Mandatory for Batteries)
     capacity_ah: decimal('capacity_ah', { precision: 6, scale: 2 }),
     resistance_mohm: decimal('resistance_mohm', { precision: 6, scale: 2 }),
     temperature_celsius: decimal('temperature_celsius', { precision: 5, scale: 2 }),
 
-    // Media & Docs
-    pdi_photos: jsonb('pdi_photos'), // Array of photo URLs
+    // GPS
+    latitude: decimal('latitude', { precision: 10, scale: 8 }).notNull(),
+    longitude: decimal('longitude', { precision: 11, scale: 8 }).notNull(),
+    location_address: text('location_address'),
+
+    // Documents
     product_manual_url: text('product_manual_url'),
     warranty_document_url: text('warranty_document_url'),
-    service_engineer_id: uuid('service_engineer_id').references(() => users.id).notNull(),
-    inspected_at: timestamp('inspected_at').notNull(),
+    pdi_photos: jsonb('pdi_photos'),
+
+    // Result
+    pdi_status: varchar('pdi_status', { length: 20 }).notNull(), // pass, fail
+    failure_reason: text('failure_reason'),
+
+    inspected_at: timestamp('inspected_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const auditLogs = pgTable('audit_logs', {
@@ -265,7 +332,7 @@ export const auditLogs = pgTable('audit_logs', {
 // --- ACCOUNTS ---
 
 export const accounts = pgTable('accounts', {
-    id: varchar('id', { length: 255 }).primaryKey(), // ACC-YYYYMMDD-SEQ
+    id: varchar('id', { length: 255 }).primaryKey(), // ACC-YYYYMMDD-XXX
     business_name: text('business_name').notNull(),
     owner_name: text('owner_name').notNull(),
     email: text('email'),
@@ -275,17 +342,17 @@ export const accounts = pgTable('accounts', {
     shipping_address: text('shipping_address'),
     status: varchar('status', { length: 20 }).default('active').notNull(),
     created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-    last_order_fulfilled_at: timestamp('last_order_fulfilled_at'), // SOP 3.6 Reorder Tracking
+    last_order_fulfilled_at: timestamp('last_order_fulfilled_at', { withTimezone: true }),
 });
 
 // --- PROCUREMENT ---
 
 export const provisions = pgTable('provisions', {
-    id: varchar('id', { length: 255 }).primaryKey(), // PROV-YYYYMMDD-SEQ
+    id: varchar('id', { length: 255 }).primaryKey(), // PROV-YYYYMMDD-XXX
     oem_id: varchar('oem_id', { length: 255 }).references(() => oems.id).notNull(),
     oem_name: text('oem_name').notNull(),
     products: jsonb('products').notNull(), // Array of { product_id, quantity }
-    expected_delivery_date: timestamp('expected_delivery_date').notNull(),
+    expected_delivery_date: timestamp('expected_delivery_date', { withTimezone: true }).notNull(),
     status: varchar('status', { length: 20 }).default('pending').notNull(), // pending, acknowledged, in_production, ready_for_pdi, completed, cancelled
     remarks: text('remarks'),
     created_by: uuid('created_by').references(() => users.id).notNull(),
@@ -294,57 +361,61 @@ export const provisions = pgTable('provisions', {
 });
 
 export const orders = pgTable('orders', {
-    id: varchar('id', { length: 255 }).primaryKey(), // ORD-YYYYMMDD-SEQ
+    id: varchar('id', { length: 255 }).primaryKey(), // ORD-YYYYMMDD-XXX
     provision_id: varchar('provision_id', { length: 255 }).references(() => provisions.id).notNull(),
     oem_id: varchar('oem_id', { length: 255 }).references(() => oems.id).notNull(),
-    account_id: varchar('account_id', { length: 255 }).references(() => accounts.id), // Added Link to Account
+    account_id: varchar('account_id', { length: 255 }).references(() => accounts.id),
 
-    // Order items (MUST be PDI Pass)
+    // Order items
     order_items: jsonb('order_items').notNull(), // Array of { inventory_id, serial_number, amount }
     total_amount: decimal('total_amount', { precision: 12, scale: 2 }).notNull(),
 
     payment_term: varchar('payment_term', { length: 20 }).notNull(), // advance, credit
     credit_period_days: integer('credit_period_days'),
 
-    // PI
+    // Documents
     pi_url: text('pi_url'),
     pi_amount: decimal('pi_amount', { precision: 12, scale: 2 }),
-
-    // Payment
-    payment_status: varchar('payment_status', { length: 20 }).default('unpaid').notNull(), // unpaid, partial, paid
-    payment_amount: decimal('payment_amount', { precision: 12, scale: 2 }),
-    payment_mode: varchar('payment_mode', { length: 50 }), // cash, bank_transfer, cheque, online
-    transaction_id: text('transaction_id'),
-    payment_date: timestamp('payment_date'),
-
-    // Delivery
-    expected_delivery_date: timestamp('expected_delivery_date').notNull(),
-    actual_delivery_date: timestamp('actual_delivery_date'),
-
-    // GRN
+    invoice_url: text('invoice_url'),
     grn_id: text('grn_id'),
-    grn_date: timestamp('grn_date'),
-    reorder_tat_days: integer('reorder_tat_days'), // SOP 3.6
+    grn_date: timestamp('grn_date', { withTimezone: true }),
+
+    // Payment Tracking
+    payment_status: varchar('payment_status', { length: 20 }).default('unpaid').notNull(), // unpaid, partial, paid
+    payment_amount: decimal('payment_amount', { precision: 12, scale: 2 }).default('0').notNull(),
+    payment_mode: varchar('payment_mode', { length: 50 }),
+    transaction_id: text('transaction_id'),
+    payment_date: timestamp('payment_date', { withTimezone: true }),
 
     // Status
     order_status: varchar('order_status', { length: 50 }).default('pi_awaited').notNull(), // pi_awaited, pi_approval_pending, pi_approved, pi_rejected, payment_made, in_transit, delivered, cancelled
+    delivery_status: varchar('delivery_status', { length: 20 }).default('pending').notNull(), // pending, in_transit, delivered, failed
+
+    // Dates
+    expected_delivery_date: timestamp('expected_delivery_date', { withTimezone: true }),
+    actual_delivery_date: timestamp('actual_delivery_date', { withTimezone: true }),
 
     created_by: uuid('created_by').references(() => users.id).notNull(),
     created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => {
+    return {
+        ordersCreatedAtIdx: index('orders_created_at_idx').on(table.created_at),
+        ordersPaymentStatusIdx: index('orders_payment_status_idx').on(table.payment_status),
+    };
 });
 
 // --- RELATIONS ---
 
 export const usersRelations = relations(users, ({ many }) => ({
-    productsCreated: many(productCatalog),
-    oemsCreated: many(oems),
-    inventoryUploaded: many(inventory),
-    leadsUploaded: many(leads),
+    productsCreated: many(productCatalog, { relationName: 'product_creator' }),
+    oemsCreated: many(oems, { relationName: 'oem_creator' }),
+    inventoryCreated: many(inventory, { relationName: 'inventory_creator' }),
+    leadsUploaded: many(leads, { relationName: 'lead_uploader' }),
     assignmentsReceived: many(leadAssignments, { relationName: 'assigned_to_user' }),
     assignmentsGiven: many(leadAssignments, { relationName: 'assigned_by_user' }),
-    dealsCreated: many(deals),
-    approvalsHandled: many(approvals),
+    dealsCreated: many(deals, { relationName: 'deal_creator' }),
+    approvalsHandled: many(approvals, { relationName: 'approver_user' }),
     slasAssigned: many(slas, { relationName: 'sla_assigned' }),
     slasEscalatedTo: many(slas, { relationName: 'sla_escalated' }),
     leadsQualified: many(leads, { relationName: 'qualified_by_user' }),
@@ -352,12 +423,12 @@ export const usersRelations = relations(users, ({ many }) => ({
 }));
 
 export const productCatalogRelations = relations(productCatalog, ({ one, many }) => ({
-    creator: one(users, { fields: [productCatalog.created_by], references: [users.id] }),
+    creator: one(users, { fields: [productCatalog.created_by], references: [users.id], relationName: 'product_creator' }),
     inventories: many(inventory),
 }));
 
 export const oemsRelations = relations(oems, ({ one, many }) => ({
-    creator: one(users, { fields: [oems.created_by], references: [users.id] }),
+    creator: one(users, { fields: [oems.created_by], references: [users.id], relationName: 'oem_creator' }),
     contacts: many(oemContacts),
 }));
 
@@ -367,11 +438,11 @@ export const oemContactsRelations = relations(oemContacts, ({ one }) => ({
 
 export const inventoryRelations = relations(inventory, ({ one }) => ({
     product: one(productCatalog, { fields: [inventory.product_id], references: [productCatalog.id] }),
-    uploader: one(users, { fields: [inventory.uploaded_by], references: [users.id] }),
+    creator: one(users, { fields: [inventory.created_by], references: [users.id], relationName: 'inventory_creator' }),
 }));
 
 export const leadsRelations = relations(leads, ({ one, many }) => ({
-    uploader: one(users, { fields: [leads.uploader_id], references: [users.id] }),
+    uploader: one(users, { fields: [leads.uploader_id], references: [users.id], relationName: 'lead_uploader' }),
     qualifiedBy: one(users, { fields: [leads.qualified_by], references: [users.id], relationName: 'qualified_by_user' }),
     assignments: many(leadAssignments),
     deals: many(deals),
@@ -387,12 +458,12 @@ export const leadAssignmentsRelations = relations(leadAssignments, ({ one }) => 
 
 export const dealsRelations = relations(deals, ({ one, many }) => ({
     lead: one(leads, { fields: [deals.lead_id], references: [leads.id] }),
-    creator: one(users, { fields: [deals.created_by], references: [users.id] }),
+    creator: one(users, { fields: [deals.created_by], references: [users.id], relationName: 'deal_creator' }),
     approvals: many(approvals),
 }));
 
 export const approvalsRelations = relations(approvals, ({ one }) => ({
-    approver: one(users, { fields: [approvals.approver_id], references: [users.id] }),
+    approver: one(users, { fields: [approvals.approver_id], references: [users.id], relationName: 'approver_user' }),
 }));
 
 export const slasRelations = relations(slas, ({ one }) => ({
@@ -413,10 +484,9 @@ export const ordersRelations = relations(orders, ({ one }) => ({
     account: one(accounts, { fields: [orders.account_id], references: [accounts.id] }),
 }));
 
-export const oemInventoryForPDIRelations = relations(oemInventoryForPDI, ({ one, many }) => ({
-    product: one(productCatalog, { fields: [oemInventoryForPDI.product_id], references: [productCatalog.id] }),
+export const oemInventoryForPDIRelations = relations(oemInventoryForPDI, ({ one }) => ({
+    inventory: one(inventory, { fields: [oemInventoryForPDI.inventory_id], references: [inventory.id] }),
     oem: one(oems, { fields: [oemInventoryForPDI.oem_id], references: [oems.id] }),
-    // provision relation could be added if provisions table is defined and we want to link explicitly, though id is stored
     pdiRecord: one(pdiRecords, { fields: [oemInventoryForPDI.pdi_record_id], references: [pdiRecords.id] }),
 }));
 
@@ -434,7 +504,6 @@ export const assignmentChangeLogsRelations = relations(assignmentChangeLogs, ({ 
 
 export const orderDisputesRelations = relations(orderDisputes, ({ one }) => ({
     order: one(orders, { fields: [orderDisputes.order_id], references: [orders.id] }),
-    assignedTo: one(users, { fields: [orderDisputes.assigned_to], references: [users.id] }), // Assigned to resolve
     resolvedBy: one(users, { fields: [orderDisputes.resolved_by], references: [users.id] }),
     creator: one(users, { fields: [orderDisputes.created_by], references: [users.id] }),
 }));

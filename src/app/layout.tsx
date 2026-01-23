@@ -7,6 +7,8 @@ import { AuthProvider } from "@/components/auth/AuthProvider";
 const inter = Inter({ subsets: ["latin"] });
 // ... (metadata unchanged)
 
+import Providers from "@/components/Providers";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -16,9 +18,11 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${inter.className} min-h-screen`}>
         <AuthProvider>
-          <LayoutWrapper>
-            {children}
-          </LayoutWrapper>
+          <Providers>
+            <LayoutWrapper>
+              {children}
+            </LayoutWrapper>
+          </Providers>
         </AuthProvider>
       </body>
     </html>
