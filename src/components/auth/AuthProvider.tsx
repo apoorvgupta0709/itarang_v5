@@ -25,7 +25,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 const response = await fetch('/api/user/profile');
                 if (response.ok) {
                     const dbUser = await response.json();
-                    setUser(dbUser);
+                    setUser(dbUser.data);
                 } else {
                     setUser({
                         id: authUser.id,

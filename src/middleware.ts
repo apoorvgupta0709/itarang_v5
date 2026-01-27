@@ -57,7 +57,7 @@ export async function middleware(request: NextRequest) {
             path.startsWith("/deals") ||
             path.startsWith("/leads");
 
-        if (isProtectedRoute && !path.startsWith("/login")) {
+        if ((isProtectedRoute || path === '/') && !path.startsWith("/login")) {
             const url = request.nextUrl.clone();
             url.pathname = "/login";
             return NextResponse.redirect(url);

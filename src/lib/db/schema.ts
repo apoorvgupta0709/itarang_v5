@@ -405,6 +405,29 @@ export const orders = pgTable('orders', {
     };
 });
 
+export const bolnaCalls = pgTable('bolna_calls', {
+    id: varchar('id', { length: 255 }).primaryKey(),
+    bolna_call_id: varchar('bolna_call_id', { length: 255 }).notNull().unique(),
+    lead_id: varchar('lead_id', { length: 255 }).references(() => leads.id),
+    status: varchar('status', { length: 20 }).default('initiated').notNull(),
+    current_phase: varchar('current_phase', { length: 100 }),
+    started_at: timestamp('started_at', { withTimezone: true }),
+    ended_at: timestamp('ended_at', { withTimezone: true }),
+    transcript_chunk: text('transcript_chunk'),
+    chunk_received_at: timestamp('chunk_received_at', { withTimezone: true }),
+    full_transcript: text('full_transcript'),
+    transcript_fetched_at: timestamp('transcript_fetched_at', { withTimezone: true }),
+    created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => {
+    return {
+        bolnaCallIdIdx: index('bolna_calls_bolna_call_id_idx').on(table.bolna_call_id),
+        leadIdIdx: index('bolna_calls_lead_id_idx').on(table.lead_id),
+        statusIdx: index('bolna_calls_status_idx').on(table.status),
+        startedAtIdx: index('bolna_calls_started_at_idx').on(table.started_at),
+    };
+});
+
 // --- RELATIONS ---
 
 export const usersRelations = relations(users, ({ many }) => ({
@@ -446,6 +469,7 @@ export const leadsRelations = relations(leads, ({ one, many }) => ({
     qualifiedBy: one(users, { fields: [leads.qualified_by], references: [users.id], relationName: 'qualified_by_user' }),
     assignments: many(leadAssignments),
     deals: many(deals),
+    bolnaCalls: many(bolnaCalls),
 }));
 
 export const leadAssignmentsRelations = relations(leadAssignments, ({ one }) => ({
@@ -510,4 +534,8 @@ export const orderDisputesRelations = relations(orderDisputes, ({ one }) => ({
 
 export const accountsRelations = relations(accounts, ({ many }) => ({
     orders: many(orders),
+}));
+
+export const bolnaCallsRelations = relations(bolnaCalls, ({ one }) => ({
+    lead: one(leads, { fields: [bolnaCalls.lead_id], references: [leads.id] }),
 }));

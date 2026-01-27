@@ -1,11 +1,12 @@
 import { db } from '@/lib/db';
-import { leads, leadAssignments, users, assignmentChangeLogs } from '@/lib/db/schema';
+import { leads, leadAssignments, users, assignmentChangeLogs, bolnaCalls } from '@/lib/db/schema';
 import { eq, desc } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { requireAuth } from '@/lib/auth-utils';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import LeadAssignment from '@/components/leads/LeadAssignment';
+import CallLogs from '@/components/leads/CallLogs';
 import { ArrowLeft, History as HistoryIcon } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -20,6 +21,12 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
 
     // Fetch Assignment
     const [assignment] = await db.select().from(leadAssignments).where(eq(leadAssignments.lead_id, leadId)).limit(1);
+
+    // Fetch Bolna Calls
+    const callLogsArr = await db.select()
+        .from(bolnaCalls)
+        .where(eq(bolnaCalls.lead_id, leadId))
+        .orderBy(desc(bolnaCalls.created_at));
 
     // Fetch All Users for Dropdown with roles for filtering
     const allUsers = await db.select({
@@ -109,6 +116,8 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                     canAssignOwner={canAssignOwner}
                     canAssignActor={canAssignActor}
                 />
+
+                <CallLogs logs={callLogsArr} />
 
                 {/* Assignment History */}
                 <div className="mt-8 border-t pt-6">
