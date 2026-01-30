@@ -1,4 +1,3 @@
-
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
@@ -38,79 +37,84 @@ export async function middleware(request: NextRequest) {
 
     const path = request.nextUrl.pathname;
 
+    // Mapping for role-specific dashboard paths
+    const roleDashboards: Record<string, string> = {
+        ceo: "/ceo",
+        business_head: "/business-head",
+        sales_head: "/sales-head",
+        sales_manager: "/sales-manager",
+        sales_executive: "/sales-executive",
+        finance_controller: "/finance-controller",
+        inventory_manager: "/inventory-manager",
+        service_engineer: "/service-engineer",
+        sales_order_manager: "/sales-order-manager",
+        dealer: "/dealer-portal",
+    };
+
+    // 1. If not logged in
     if (!user) {
-        // Protected routes check
+        // Allow /login and /api routes
+        if (path === "/login" || path.startsWith("/api")) {
+            return response;
+        }
+
+        // Check if path is protected OR root '/'
         const isProtectedRoute =
-            path.startsWith("/ceo") ||
-            path.startsWith("/business-head") ||
-            path.startsWith("/sales-head") ||
-            path.startsWith("/sales-manager") ||
-            path.startsWith("/sales-executive") ||
-            path.startsWith("/finance-controller") ||
-            path.startsWith("/inventory-manager") ||
-            path.startsWith("/service-engineer") ||
-            path.startsWith("/sales-order-manager") ||
-            path.startsWith("/dealer-portal") ||
+            Object.values(roleDashboards).some((d) => path.startsWith(d)) ||
             path.startsWith("/inventory") ||
             path.startsWith("/product-catalog") ||
             path.startsWith("/oem-onboarding") ||
             path.startsWith("/deals") ||
-            path.startsWith("/leads");
+            path.startsWith("/leads") ||
+            path.startsWith("/approvals") ||
+            path.startsWith("/orders") ||
+            path.startsWith("/provisions") ||
+            path.startsWith("/disputes");
 
-        if ((isProtectedRoute || path === '/') && !path.startsWith("/login")) {
+        if (isProtectedRoute || path === "/") {
             const url = request.nextUrl.clone();
             url.pathname = "/login";
             return NextResponse.redirect(url);
         }
+
         return response;
     }
 
+    // 2. If logged in
     const { data: profile } = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', user.id)
+        .from("users")
+        .select("role")
+        .eq("id", user.id)
         .single();
 
-    // Standardize role to lowercase for lookup
-    const rawRole = profile?.role || 'user';
+    const rawRole = profile?.role || "user";
     const role = rawRole.toLowerCase();
+    const myDashboard = roleDashboards[role] || "/";
 
-    // Mapping for role-specific dashboard paths
-    const roleDashboards: Record<string, string> = {
-        ceo: '/ceo',
-        business_head: '/business-head',
-        sales_head: '/sales-head',
-        sales_manager: '/sales-manager',
-        sales_executive: '/sales-executive',
-        finance_controller: '/finance-controller',
-        inventory_manager: '/inventory-manager',
-        service_engineer: '/service-engineer',
-        sales_order_manager: '/sales-order-manager',
-        dealer: '/dealer-portal',
-    };
+    // Redirection from /login or / or /dashboard
+    if (path === "/" || path === "/login" || path === "/dashboard") {
+        // If logged in, never stay on /login
+        if (path === "/login") {
+            return NextResponse.redirect(new URL(myDashboard, request.url));
+        }
 
-    // 1. Root and Dashboard path redirection
-    if (path === '/' || path === '/dashboard' || path === '/login') {
-        const dashboard = roleDashboards[role];
-        if (dashboard) {
-            return NextResponse.redirect(new URL(dashboard, request.url));
+        // Optional: redirect / and /dashboard to role dashboard when role is known
+        if (path === "/" || path === "/dashboard") {
+            if (myDashboard !== "/") {
+                return NextResponse.redirect(new URL(myDashboard, request.url));
+            }
         }
-        // Fallback for 'user' role or undefined dashboards is to allow '/', 
-        // which will be handled by src/app/(dashboard)/page.tsx
-        if (path === '/login') {
-            return NextResponse.redirect(new URL('/', request.url));
-        }
+
+        return response; // allow '/' for 'user'
     }
 
-    // 2. Role-based path protection
-    // Check if the current path belongs to any specific role
+    // Role-based path protection
     const roles = Object.keys(roleDashboards);
-    const matchedRole = roles.find(r => path.startsWith(roleDashboards[r]));
+    const matchedRole = roles.find((r) => path.startsWith(roleDashboards[r]));
 
-    // Allow CEO to access everything, others only their own paths
-    if (matchedRole && matchedRole !== role && role !== 'ceo') {
-        // Redirect unauthorized access to their actual dashboard or root
-        return NextResponse.redirect(new URL(roleDashboards[role] || '/', request.url));
+    // If accessing another role's path and not CEO
+    if (matchedRole && matchedRole !== role && role !== "ceo") {
+        return NextResponse.redirect(new URL(myDashboard, request.url));
     }
 
     return response;
@@ -118,13 +122,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
     matcher: [
-        /*
-         * Match all request paths except for the ones starting with:
-         * - _next/static (static files)
-         * - _next/image (image optimization files)
-         * - favicon.ico (favicon file)
-         * Feel free to modify this pattern to include more paths.
-         */
         "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
     ],
 };
