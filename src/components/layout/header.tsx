@@ -1,9 +1,20 @@
 "use client";
 
 import React from 'react';
-import { Search, Bell, Plus } from 'lucide-react';
+import { Search, Bell, LogOut } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
+import { useRouter } from 'next/navigation';
 
 export function Header() {
+    const router = useRouter();
+    const supabase = createClient();
+
+    const handleLogout = async () => {
+        await supabase.auth.signOut();
+        router.push('/login');
+        router.refresh();
+    };
+
     return (
         <header className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-gray-100 px-6 py-4 flex items-center justify-between">
             <div className="flex items-center gap-4 flex-1 max-w-xl">
@@ -19,13 +30,16 @@ export function Header() {
             </div>
 
             <div className="flex items-center gap-4">
-                <button className="relative p-2.5 bg-white border border-gray-100 rounded-xl hover:bg-gray-50 text-gray-500 transition-colors shadow-sm">
+                <button className="relative p-2.5 bg-white border border-gray-100 rounded-xl hover:bg-gray-50 text-gray-500 transition-colors shadow-sm focus:outline-none">
                     <Bell className="w-5 h-5" />
                     <span className="absolute top-2 right-2.5 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
                 </button>
-                <button className="hidden md:flex items-center gap-2 px-4 py-2.5 bg-brand-600 text-white rounded-xl hover:bg-brand-700 text-sm font-medium shadow-lg shadow-brand-500/30 transition-all active:scale-95">
-                    <Plus className="w-4 h-4" />
-                    Add Entry
+                <button
+                    onClick={handleLogout}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 text-sm font-medium transition-all active:scale-95 shadow-sm border border-red-100"
+                >
+                    <LogOut className="w-4 h-4" />
+                    Logout
                 </button>
             </div>
         </header>

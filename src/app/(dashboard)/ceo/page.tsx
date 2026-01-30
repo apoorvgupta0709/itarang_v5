@@ -15,15 +15,6 @@ import {
     Loader2
 } from 'lucide-react';
 
-const mockChartData = [
-    { name: 'Mon', revenue: 45000 },
-    { name: 'Tue', revenue: 52000 },
-    { name: 'Wed', revenue: 48000 },
-    { name: 'Thu', revenue: 61000 },
-    { name: 'Fri', revenue: 55000 },
-    { name: 'Sat', revenue: 67000 },
-    { name: 'Sun', revenue: 72000 },
-];
 
 export default function CEODashboard() {
     const { data: metrics, isLoading, error } = useQuery({
@@ -31,9 +22,10 @@ export default function CEODashboard() {
         queryFn: async () => {
             const response = await fetch('/api/dashboard/ceo');
             if (!response.ok) throw new Error('Failed to fetch dashboard metrics');
-            return response.json();
+            const result = await response.json();
+            return result.data; // API returns { data: ... }
         },
-        refetchInterval: 60000, // Refresh every minute
+        refetchInterval: 60000,
     });
 
     if (isLoading) {
@@ -68,25 +60,25 @@ export default function CEODashboard() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <KPICard
                     title="Revenue (MTD)"
-                    value={`₹${(m.revenue / 100000).toFixed(1)}L`}
+                    value={`₹${(Number(m.revenue ?? 0) / 100000).toFixed(1)}L`}
                     change={{ value: 12.5, period: 'vs last month', isPositive: true }}
                     icon={DollarSign}
                 />
                 <KPICard
                     title="Conversion Rate"
-                    value={`${m.conversionRate.toFixed(1)}%`}
+                    value={`${Number(m.conversionRate ?? 0).toFixed(1)}%`}
                     change={{ value: 2.1, period: 'vs last month', isPositive: true }}
                     icon={TrendingUp}
                 />
                 <KPICard
                     title="Inventory Value"
-                    value={`₹${(m.inventoryValue / 100000).toFixed(1)}L`}
+                    value={`₹${(Number(m.inventoryValue ?? 0) / 100000).toFixed(1)}L`}
                     change={{ value: 4.2, period: 'vs last month', isPositive: false }}
                     icon={Package}
                 />
                 <KPICard
                     title="Outstanding Credits"
-                    value={`₹${(m.outstandingCredits / 100000).toFixed(1)}L`}
+                    value={`₹${(Number(m.outstandingCredits ?? 0) / 100000).toFixed(1)}L`}
                     change={{ value: 8.4, period: 'vs last month', isPositive: true }}
                     icon={AlertCircle}
                 />
@@ -97,7 +89,7 @@ export default function CEODashboard() {
                 <div className="lg:col-span-2">
                     <MetricsChart
                         title="Revenue Performance Trend"
-                        data={mockChartData}
+                        data={m.revenueTrend || []}
                         dataKeys={['revenue']}
                         categoryKey="name"
                         type="area"
@@ -113,11 +105,11 @@ export default function CEODashboard() {
                         <div className="space-y-4">
                             <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50 border border-gray-100">
                                 <span className="text-xs font-medium text-gray-600">Pending Approvals</span>
-                                <span className="text-xs font-bold text-brand-700">12 Items</span>
+                                <span className="text-xs font-bold text-brand-700">{m.procurementStats?.pendingApprovals || 0} Items</span>
                             </div>
                             <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50 border border-gray-100">
                                 <span className="text-xs font-medium text-gray-600">Active Procurement</span>
-                                <span className="text-xs font-bold text-blue-700">₹14.2L</span>
+                                <span className="text-xs font-bold text-blue-700">₹{(Number(m.procurementStats?.activeValue ?? 0) / 100000).toFixed(1)}L</span>
                             </div>
                             <button className="w-full py-2.5 text-xs font-semibold text-brand-700 hover:bg-brand-50 rounded-xl transition-colors flex items-center justify-center gap-2 mt-2">
                                 Review Procurement <ArrowRight className="w-3 h-3" />
@@ -148,14 +140,10 @@ export default function CEODashboard() {
                     <button className="text-xs font-semibold text-brand-700 hover:underline">View All Teams</button>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {[
-                        { name: 'Rajesh Kumar', region: 'North DL', leads: 42, conversion: '24%' },
-                        { name: 'Priya Singh', region: 'West MH', leads: 38, conversion: '21%' },
-                        { name: 'Amit Sharma', region: 'East WB', leads: 45, conversion: '19%' },
-                    ].map((manager) => (
+                    {(m.topSalesManagers || []).map((manager: any) => (
                         <div key={manager.name} className="flex items-center gap-4 p-4 rounded-xl border border-gray-50 bg-gray-50/50 hover:bg-white hover:border-brand-100 transition-all cursor-default group">
                             <div className="w-10 h-10 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center font-bold text-sm">
-                                {manager.name.split(' ').map(n => n[0]).join('')}
+                                {manager.name.split(' ').map((n: string) => n[0]).join('')}
                             </div>
                             <div className="flex-1">
                                 <p className="text-sm font-bold text-gray-900">{manager.name}</p>

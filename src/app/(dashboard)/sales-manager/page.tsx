@@ -47,6 +47,13 @@ const leadColumns: any[] = [
     },
 ];
 
+const dealData = [
+    { status: 'Qualified', count: 12 },
+    { status: 'Negotiation', count: 8 },
+    { status: 'Closing', count: 5 },
+    { status: 'On Hold', count: 3 },
+];
+
 export default function SalesManagerDashboard() {
     const { data: metrics, isLoading, error } = useQuery({
         queryKey: ['dashboard-metrics', 'sales_manager'],
@@ -90,19 +97,19 @@ export default function SalesManagerDashboard() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <KPICard
                     title="Active Leads"
-                    value={m.activeLeads.toString()}
+                    value={Number(m.activeLeads ?? 0).toString()}
                     change={{ value: 5.4, period: 'vs last week', isPositive: true }}
                     icon={Users}
                 />
                 <KPICard
                     title="Pipeline Value"
-                    value={`₹${(m.pipelineValue / 100000).toFixed(1)}L`}
+                    value={`₹${(Number(m.pipelineValue ?? 0) / 100000).toFixed(1)}L`}
                     change={{ value: 12.8, period: 'vs last week', isPositive: true }}
                     icon={Target}
                 />
                 <KPICard
                     title="Hot Leads"
-                    value={m.hotLeads.toString()}
+                    value={Number(m.hotLeads ?? 0).toString()}
                     change={{ value: 8.2, period: 'vs last week', isPositive: true }}
                     icon={TrendingUp}
                 />
@@ -195,5 +202,6 @@ export default function SalesManagerDashboard() {
                 searchPlaceholder="Search leads by name, state or source..."
                 pageSize={5}
             />
-            );
+        </div>
+    );
 }

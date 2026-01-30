@@ -247,8 +247,29 @@ async function seed() {
 
     // 6. Seed Deals (Revenue Data)
     console.log('💰 Seeding Deals...');
-    const dealIds = ['DEAL-SEED-001', 'DEAL-SEED-002', 'DEAL-SEED-003'];
+    const dealIds = ['DEAL-SEED-001', 'DEAL-SEED-002', 'DEAL-SEED-003', 'DEAL-SEED-004', 'DEAL-SEED-005'];
+
+    // Historical deals for trend
+    const historicalDeals = [];
+    for (let i = 0; i < 7; i++) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        historicalDeals.push({
+            id: `DEAL-TREND-${i}`,
+            lead_id: 'LEAD-SEED-003',
+            products: [{ product_id: productIds[0], quantity: Math.floor(Math.random() * 10) + 1, unit_price: 35000, gst_percent: 18 }],
+            line_total: (35000 * 5).toString(),
+            gst_amount: (35000 * 5 * 0.18).toString(),
+            total_payable: (35000 * 5 * 1.18).toString(),
+            payment_term: 'advance',
+            deal_status: 'converted',
+            created_by: salesHeadId,
+            created_at: date
+        });
+    }
+
     await db.insert(deals).values([
+        ...historicalDeals,
         // Converted Deal (Revenue for CEO)
         {
             id: dealIds[0],
@@ -260,7 +281,7 @@ async function seed() {
             payment_term: 'advance',
             deal_status: 'converted',
             created_by: salesHeadId,
-            created_at: new Date('2026-01-10') // Start of month for MTD check
+            created_at: new Date()
         },
         // Pending L2 Approval (For Business Head Queue)
         {
@@ -274,34 +295,41 @@ async function seed() {
             deal_status: 'pending_approval_l2',
             created_by: salesHeadId,
             created_at: new Date()
-        },
-        // Payment Awaited (For Finance Controller Invoicing Queue)
-        {
-            id: dealIds[2],
-            lead_id: 'LEAD-SEED-001',
-            products: [{ product_id: productIds[1], quantity: 5, unit_price: 40000, gst_percent: 18 }],
-            line_total: '200000',
-            gst_amount: '36000',
-            total_payable: '236000',
-            payment_term: 'advance',
-            deal_status: 'payment_awaited',
-            created_by: salesManagerId,
-            created_at: new Date()
         }
     ]).onConflictDoNothing();
 
     // 7. Seed Inventory & Provisions
-    console.log('🏭 Seeding Inventory...');
-    // Provision
-    await db.insert(provisions).values({
-        id: 'PROV-SEED-001',
-        oem_id: oemIds[0],
-        oem_name: 'Livguard',
-        products: [{ product_id: productIds[0], quantity: 20 }],
-        expected_delivery_date: new Date(),
-        status: 'completed',
-        created_by: ceoId
-    }).onConflictDoNothing();
+    console.log('🏭 Seeding Inventory & Provisions...');
+    const provIds = ['PROV-SEED-001', 'PROV-SEED-002', 'PROV-SEED-003'];
+    await db.insert(provisions).values([
+        {
+            id: provIds[0],
+            oem_id: livguardId,
+            oem_name: 'Livguard',
+            products: [{ product_id: productIds[0], quantity: 20 }],
+            expected_delivery_date: new Date(),
+            status: 'completed',
+            created_by: ceoId
+        },
+        {
+            id: provIds[1],
+            oem_id: exideId,
+            oem_name: 'Exide',
+            products: [{ product_id: productIds[1], quantity: 15 }],
+            expected_delivery_date: new Date(Date.now() + 86400000 * 3),
+            status: 'pending',
+            created_by: ceoId
+        },
+        {
+            id: provIds[2],
+            oem_id: livguardId,
+            oem_name: 'Livguard',
+            products: [{ product_id: productIds[2], quantity: 50 }],
+            expected_delivery_date: new Date(Date.now() + 86400000 * 5),
+            status: 'acknowledged',
+            created_by: ceoId
+        }
+    ]).onConflictDoNothing();
 
     // Inventory Items (Available)
     const invIds = Array.from({ length: 10 }, (_, i) => `INV-SEED-${i + 1}`);
@@ -340,13 +368,6 @@ async function seed() {
         // Wait, schema says orders.provision_id references provisions.id?
         // Line 505: provision: one(provisions, ...)
         // Line 365: provision_id varchar references provisions.id
-        // This implies Orders are linked to PROVISIONS? 
-        // That sounds like Purchase Orders, not Sales Orders.
-        // BUT `accounts` (Dealers) are linked to Orders (Line 367).
-        // AND `deals` also exist.
-        // This schema is a bit confusing. Sales Orders usually link to Deals.
-        // Let's assume for now we just link to the dummy provision to satisfy FK.
-        provision_id: 'PROV-SEED-001',
         oem_id: oemIds[0],
         account_id: accountIds[0],
         order_items: [{ inventory_id: 'INV-SOLD-FAKE', amount: 413000 }],
@@ -369,7 +390,7 @@ async function seed() {
         total_amount: '200000',
         payment_term: 'advance',
         payment_status: 'paid',
-        order_status: 'in_transit', // "Pending Dispatch" usually means not yet shipped. Schema has delivery_status?
+        delivery_status: 'pending',
         // Line 391 order_status: ... in_transit, delivered
         // Line 392 delivery_status: pending, in_transit
         // Let's set order_status='payment_made' and delivery_status='pending' for "Pending Dispatch"
@@ -380,8 +401,6 @@ async function seed() {
         // This means the API Route is likely Broken/Mocked aggressively or using a field that doesn't exist.
         // I will fix this in Route Refactor. I will use `delivery_status`.
 
-        // For now, let's just seed valid data.
-        order_status: 'payment_made', // Ready for dispatch
         delivery_status: 'pending',
         created_by: salesManagerId
     }).onConflictDoNothing();
@@ -400,6 +419,56 @@ async function seed() {
         delivery_status: 'in_transit',
         created_by: salesManagerId
     }).onConflictDoNothing();
+
+
+    // Historical orders for trend (Last 7 days)
+    console.log('📦 Seeding Historical Orders...');
+    const historicalOrders = [];
+    for (let i = 0; i < 7; i++) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+
+        // Received volume (Created on this day)
+        const receivedCount = Math.floor(Math.random() * 5) + 3;
+        for (let j = 0; j < receivedCount; j++) {
+            historicalOrders.push({
+                id: `ORD-HIST-REC-${i}-${j}`,
+                provision_id: provIds[0],
+                oem_id: oemIds[0],
+                account_id: accountIds[0],
+                order_items: [],
+                total_amount: '100000',
+                payment_term: 'advance',
+                payment_status: 'paid',
+                order_status: 'payment_made',
+                delivery_status: 'pending',
+                created_by: salesManagerId,
+                created_at: date,
+                updated_at: date
+            });
+        }
+
+        // Dispatched volume (Updated to in_transit on this day)
+        const dispatchedCount = Math.floor(Math.random() * 4) + 2;
+        for (let j = 0; j < dispatchedCount; j++) {
+            historicalOrders.push({
+                id: `ORD-HIST-DISP-${i}-${j}`,
+                provision_id: provIds[0],
+                oem_id: oemIds[0],
+                account_id: accountIds[1],
+                order_items: [],
+                total_amount: '120000',
+                payment_term: 'advance',
+                payment_status: 'paid',
+                order_status: 'in_transit',
+                delivery_status: 'in_transit',
+                created_by: salesManagerId,
+                created_at: new Date(date.getTime() - 86400000),
+                updated_at: date
+            });
+        }
+    }
+    await db.insert(orders).values(historicalOrders).onConflictDoNothing();
 
 
     // 9. Seed PDI Records (Service Engineer)
