@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { inventory, productCatalog, oems } from '@/lib/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { requireAuth } from '@/lib/auth-utils';
 import { successResponse, withErrorHandler, generateId } from '@/lib/api-utils';
 import Papa from 'papaparse';
@@ -66,12 +66,24 @@ export const POST = withErrorHandler(async (req: Request) => {
             const row = rows[i];
             const validated = inventoryRowSchema.parse(row);
 
-            // 1. Find OEM
+            // 1. Find OEM (case-insensitive match)
+            const oemName = (validated.oem_name || "").trim();
+
             let oem = await db.query.oems.findFirst({
-                where: eq(oems.business_entity_name, validated.oem_name)
+                where: (t, { ilike }) => ilike(t.business_entity_name, oemName),
             });
+
+                if (!oem) {
+                // Optional: also try whitespace-normalized (double spaces etc.)
+                const normalized = oemName.replace(/\s+/g, " ");
+                if (normalized !== oemName) {
+                    oem = await db.query.oems.findFirst({
+                        where: (t, { ilike }) => ilike(t.business_entity_name, normalized),
+                    });
+                }
+            }
+
             if (!oem) {
-                // Try fuzzy match or just fail? Fail for now as per strict guidelines
                 throw new Error(`OEM '${validated.oem_name}' not found. Please register OEM first.`);
             }
 

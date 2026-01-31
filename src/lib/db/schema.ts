@@ -20,14 +20,18 @@ export const users = pgTable('users', {
 export const productCatalog = pgTable('product_catalog', {
     id: varchar('id', { length: 255 }).primaryKey(), // PCAT-YYYYMMDD-SEQ
     hsn_code: varchar('hsn_code', { length: 8 }).notNull(),
-    asset_category: varchar('asset_category', { length: 20 }).notNull(), // 2W, 3W, Inverter
-    asset_type: varchar('asset_type', { length: 50 }).notNull(), // Charger, Battery, SOC, Harness, Inverter
+    asset_category: varchar('asset_category', { length: 20 }).notNull(),
+    asset_type: varchar('asset_type', { length: 50 }).notNull(),
     model_type: text('model_type').notNull(),
     is_serialized: boolean('is_serialized').default(true).notNull(),
     warranty_months: integer('warranty_months').notNull(),
     status: varchar('status', { length: 20 }).default('active').notNull(),
     created_by: uuid('created_by').references(() => users.id),
     created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+
+    // ✅ ADD THIS
+    updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+
     disabled_at: timestamp('disabled_at', { withTimezone: true }),
     disabled_by: uuid('disabled_by').references(() => users.id),
 });
