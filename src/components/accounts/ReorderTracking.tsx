@@ -19,7 +19,13 @@ export default async function ReorderTracking({ accountId }: ReorderTrackingProp
         .orderBy(desc(orders.created_at))
         .limit(5);
 
-    const tats = recentOrders.map(o => o.reorder_tat_days).filter(t => t !== null) as number[];
+    const tats: number[] = [];
+    for (let i = 0; i < recentOrders.length - 1; i++) {
+        const current = new Date(recentOrders[i].created_at);
+        const previous = new Date(recentOrders[i + 1].created_at);
+        const diff = Math.floor((current.getTime() - previous.getTime()) / (1000 * 60 * 60 * 24));
+        tats.push(diff);
+    }
     const avgTat = tats.length > 0 ? (tats.reduce((a, b) => a + b, 0) / tats.length).toFixed(1) : 'N/A';
 
     return (

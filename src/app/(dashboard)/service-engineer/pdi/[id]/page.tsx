@@ -1,7 +1,7 @@
 
 import { requireAuth } from '@/lib/auth-utils';
 import { db } from '@/lib/db';
-import { oemInventoryForPDI, productCatalog, oems, provisions } from '@/lib/db/schema';
+import { inventory, oemInventoryForPDI, productCatalog, oems, provisions } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import PDIForm from './pdi-form';
@@ -27,7 +27,8 @@ export default async function PDIInspectionPage({ params }: PageProps) {
         }
     })
         .from(oemInventoryForPDI)
-        .leftJoin(productCatalog, eq(oemInventoryForPDI.product_id, productCatalog.id))
+        .leftJoin(inventory, eq(oemInventoryForPDI.inventory_id, inventory.id))
+        .leftJoin(productCatalog, eq(inventory.product_id, productCatalog.id))
         .leftJoin(oems, eq(oemInventoryForPDI.oem_id, oems.id))
         .where(eq(oemInventoryForPDI.id, id))
         .limit(1);

@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { Search, ChevronLeft, ChevronRight } from 'lucide-react';
 
-interface Column<T> {
+export interface Column<T> {
     header: string;
     accessor: keyof T;
     render?: (value: unknown, row: T) => React.ReactNode;

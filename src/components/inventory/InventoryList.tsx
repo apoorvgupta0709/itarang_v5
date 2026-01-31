@@ -1,169 +1,138 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import * as XLSX from 'xlsx';
-import { DataTable } from '@/components/shared/data-table';
-import { Download, Loader2, AlertCircle } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import React, { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
-type InventoryItem = {
-    id: string;
-    serial_number: string | null;
-    status: string;
-    inventory_amount: number;
-    gst_amount: number;
-    final_amount: number;
-    uploaded_at: string;
-    iot_imei_no: string | null;
-    oem_invoice_number: string | null;
-    warehouse_location: string | null;
-    oem_id: string;
-    product: {
-        hsn_code: string;
-        asset_category: string;
-        asset_type: string;
-        model_type: string;
-    };
-};
+type InventoryRow = any;
+
+async function fetchInventory(filters: Record<string, string>) {
+    const qs = new URLSearchParams(filters);
+    const res = await fetch(`/api/inventory?${qs.toString()}`);
+    const json = await res.json();
+    if (!res.ok || !json?.success) throw new Error(json?.error?.message || "Failed to load inventory");
+    return json.data as InventoryRow[];
+}
 
 export default function InventoryList() {
-    const [filters, setFilters] = useState({
-        asset_category: '',
-        status: ''
-    });
+    const [q, setQ] = useState("");
+    const [status, setStatus] = useState("");
+    const [assetCategory, setAssetCategory] = useState("");
+
+    const filters = useMemo(() => {
+        return {
+            q: q.trim(),
+            status,
+            asset_category: assetCategory,
+            limit: "50",
+            offset: "0",
+        };
+    }, [q, status, assetCategory]);
 
     const { data, isLoading, error } = useQuery({
-        queryKey: ['inventory', filters],
-        queryFn: async () => {
-            const params = new URLSearchParams();
-            if (filters.asset_category) params.append('asset_category', filters.asset_category);
-            if (filters.status) params.append('status', filters.status);
-
-            const res = await fetch(`/api/inventory?${params.toString()}`);
-            if (!res.ok) throw new Error('Failed to fetch inventory');
-            const result = await res.json();
-            return result.data as InventoryItem[];
-        }
+        queryKey: ["inventory", filters],
+        queryFn: () => fetchInventory(filters),
     });
 
-    const handleExport = () => {
-        if (!data) return;
-
-        const exportData = data.map(item => ({
-            'Serial Number': item.serial_number || 'N/A',
-            'Category': item.product.asset_category,
-            'Type': item.product.asset_type,
-            'Model': item.product.model_type,
-            'Status': item.status,
-            'IMEI': item.iot_imei_no || 'N/A',
-            'OEM Invoice No': item.oem_invoice_number || '-',
-            'Warehouse': item.warehouse_location || '-',
-            'Amount': item.inventory_amount,
-            'GST': item.gst_amount,
-            'Total': item.final_amount,
-            'Date': new Date(item.uploaded_at).toLocaleDateString()
-        }));
-
-        const ws = XLSX.utils.json_to_sheet(exportData);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Inventory");
-        XLSX.writeFile(wb, "Inventory_Report.xlsx");
-    };
-
-    const columns: any[] = [
-        { header: 'Serial No', accessorKey: 'serial_number', cell: (item: any) => <span className="font-mono text-xs">{item.serial_number || '-'}</span> },
-        { header: 'Model', accessorKey: 'product.model_type', cell: (item: any) => item.product.model_type },
-        { header: 'Category/Type', accessorKey: 'category_type', cell: (item: any) => `${item.product.asset_category} - ${item.product.asset_type}` },
-        { header: 'Location', accessorKey: 'warehouse_location' },
-        {
-            header: 'Status',
-            accessorKey: 'status',
-            cell: (item: any) => (
-                <span className={cn(
-                    "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase",
-                    item.status === 'available' ? "bg-emerald-50 text-emerald-600" :
-                        item.status === 'sold' ? "bg-blue-50 text-blue-600" : "bg-gray-100 text-gray-600"
-                )}>
-                    {item.status}
-                </span>
-            )
-        },
-        {
-            header: 'Price',
-            accessorKey: 'final_amount',
-            align: 'right',
-            cell: (item: any) => <span className="font-bold">₹{item.final_amount.toLocaleString()}</span>
-        },
-    ];
-
-    if (error) {
-        return (
-            <div className="p-8 rounded-2xl bg-red-50 border border-red-100 text-center">
-                <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-                <h3 className="text-lg font-bold text-red-900">Inventory Sync Error</h3>
-                <p className="text-sm text-red-600 mt-2">Could not connect to the inventory service.</p>
-            </div>
-        );
-    }
-
     return (
-        <div className="space-y-6">
-            <div className="flex flex-col md:flex-row justify-between items-end gap-4 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-                <div className="flex flex-wrap gap-4 flex-1">
-                    <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider ml-1">Asset Category</label>
-                        <select
-                            className="flex h-10 w-full rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 min-w-[160px]"
-                            value={filters.asset_category}
-                            onChange={(e) => setFilters(prev => ({ ...prev, asset_category: e.target.value }))}
-                        >
-                            <option value="">All Categories</option>
-                            <option value="3W">3W</option>
-                            <option value="2W">2W</option>
-                            <option value="Inverter">Inverter</option>
-                        </select>
-                    </div>
+        <div className="space-y-4">
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
+                <div className="flex flex-col md:flex-row gap-3 md:items-center w-full">
+                    <input
+                        className="input-parcel md:w-80"
+                        placeholder="Search serial / batch / OEM / model…"
+                        value={q}
+                        onChange={(e) => setQ(e.target.value)}
+                    />
 
-                    <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider ml-1">Stock Status</label>
-                        <select
-                            className="flex h-10 w-full rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 min-w-[160px]"
-                            value={filters.status}
-                            onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
-                        >
-                            <option value="">All Statuses</option>
-                            <option value="available">Available</option>
-                            <option value="sold">Sold</option>
-                            <option value="defective">Defective</option>
-                        </select>
-                    </div>
+                    <select className="input-parcel md:w-56" value={status} onChange={(e) => setStatus(e.target.value)}>
+                        <option value="">All Status</option>
+                        <option value="in_transit">In Transit</option>
+                        <option value="pdi_pending">PDI Pending</option>
+                        <option value="pdi_failed">PDI Failed</option>
+                        <option value="available">Available</option>
+                        <option value="reserved">Reserved</option>
+                        <option value="sold">Sold</option>
+                        <option value="damaged">Damaged</option>
+                        <option value="returned">Returned</option>
+                    </select>
+
+                    <select
+                        className="input-parcel md:w-40"
+                        value={assetCategory}
+                        onChange={(e) => setAssetCategory(e.target.value)}
+                    >
+                        <option value="">All Categories</option>
+                        <option value="2W">2W</option>
+                        <option value="3W">3W</option>
+                        <option value="Inverter">Inverter</option>
+                    </select>
+                </div>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="p-6 border-b border-gray-100">
+                    <h2 className="text-lg font-bold text-gray-900">Inventory Report</h2>
+                    <p className="text-sm text-gray-500">Includes challan, upload and IMEI fields (Phase-A).</p>
                 </div>
 
-                <button
-                    onClick={handleExport}
-                    disabled={isLoading || !data?.length}
-                    className="flex items-center gap-2 px-6 py-2.5 bg-brand-600 text-white text-xs font-bold rounded-xl shadow-lg shadow-brand-500/20 hover:bg-brand-700 transition-all disabled:opacity-50 disabled:shadow-none"
-                >
-                    <Download className="w-4 h-4" />
-                    Export to Excel
-                </button>
-            </div>
+                {isLoading ? (
+                    <div className="p-6 text-sm text-gray-500">Loading…</div>
+                ) : error ? (
+                    <div className="p-6 text-sm text-rose-600">{(error as any).message}</div>
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full text-sm">
+                            <thead className="bg-gray-50 text-gray-600">
+                                <tr>
+                                    <th className="text-left px-6 py-3">OEM</th>
+                                    <th className="text-left px-6 py-3">Model</th>
+                                    <th className="text-left px-6 py-3">Serial / Batch</th>
+                                    <th className="text-left px-6 py-3">IMEI</th>
+                                    <th className="text-left px-6 py-3">Challan</th>
+                                    <th className="text-left px-6 py-3">Uploaded</th>
+                                    <th className="text-left px-6 py-3">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {(data || []).map((row) => (
+                                    <tr key={row.id} className="border-t border-gray-100">
+                                        <td className="px-6 py-3">
+                                            <div className="font-semibold text-gray-900">{row.oem_name}</div>
+                                            <div className="text-xs text-gray-500">{row.oem_id}</div>
+                                        </td>
+                                        <td className="px-6 py-3">
+                                            <div className="font-semibold text-gray-900">{row.model_type}</div>
+                                            <div className="text-xs text-gray-500">{row.asset_category} • {row.asset_type}</div>
+                                        </td>
+                                        <td className="px-6 py-3">
+                                            <div className="font-mono text-xs text-gray-800">{row.serial_number || "-"}</div>
+                                            <div className="font-mono text-xs text-gray-500">{row.batch_number || (row.quantity ? `QTY: ${row.quantity}` : "")}</div>
+                                        </td>
+                                        <td className="px-6 py-3 font-mono text-xs">{row.iot_imei_no || "-"}</td>
+                                        <td className="px-6 py-3">
+                                            <div className="text-xs">{row.challan_number || "-"}</div>
+                                            <div className="text-[11px] text-gray-500">
+                                                {row.challan_date ? new Date(row.challan_date).toLocaleDateString() : ""}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-3 text-xs text-gray-600">
+                                            {row.uploaded_at ? new Date(row.uploaded_at).toLocaleString() : "-"}
+                                        </td>
+                                        <td className="px-6 py-3">
+                                            <span className="px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">
+                                                {row.status}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
 
-            <div className="min-h-[400px] relative">
-                {isLoading && (
-                    <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-10 flex flex-col items-center justify-center gap-3">
-                        <Loader2 className="w-8 h-8 text-brand-600 animate-spin" />
-                        <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Refreshing Inventory...</p>
+                        {(data || []).length === 0 && (
+                            <div className="p-6 text-sm text-gray-500">No rows found.</div>
+                        )}
                     </div>
                 )}
-
-                <DataTable
-                    data={data || []}
-                    columns={columns}
-                    searchPlaceholder="Filter Serial No, Model, or IMEI..."
-                    pageSize={10}
-                />
             </div>
         </div>
     );

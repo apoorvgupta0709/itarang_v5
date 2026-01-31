@@ -2,126 +2,125 @@ import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
 export async function middleware(request: NextRequest) {
-    let response = NextResponse.next({
-        request: {
-            headers: request.headers,
+  let response = NextResponse.next({
+    request: { headers: request.headers },
+  });
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
         },
-    });
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
 
-    const supabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-            cookies: {
-                getAll() {
-                    return request.cookies.getAll();
-                },
-                setAll(cookiesToSet) {
-                    cookiesToSet.forEach(({ name, value, options }) =>
-                        request.cookies.set(name, value)
-                    );
-                    response = NextResponse.next({
-                        request,
-                    });
-                    cookiesToSet.forEach(({ name, value, options }) =>
-                        response.cookies.set(name, value, options)
-                    );
-                },
-            },
-        }
-    );
+          response = NextResponse.next({ request });
 
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
+          cookiesToSet.forEach(({ name, value, options }) => {
+            response.cookies.set(name, value, options);
+          });
+        },
+      },
+    }
+  );
 
-    const path = request.nextUrl.pathname;
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-    // Mapping for role-specific dashboard paths
-    const roleDashboards: Record<string, string> = {
-        ceo: "/ceo",
-        business_head: "/business-head",
-        sales_head: "/sales-head",
-        sales_manager: "/sales-manager",
-        sales_executive: "/sales-executive",
-        finance_controller: "/finance-controller",
-        inventory_manager: "/inventory-manager",
-        service_engineer: "/service-engineer",
-        sales_order_manager: "/sales-order-manager",
-        dealer: "/dealer-portal",
-    };
+  const path = request.nextUrl.pathname;
 
-    // 1. If not logged in
-    if (!user) {
-        // Allow /login and /api routes
-        if (path === "/login" || path.startsWith("/api")) {
-            return response;
-        }
+  // Mapping for role-specific dashboard paths
+  const roleDashboards: Record<string, string> = {
+    ceo: "/ceo",
+    business_head: "/business-head",
+    sales_head: "/sales-head",
+    sales_manager: "/sales-manager",
+    sales_executive: "/sales-executive",
+    finance_controller: "/finance-controller",
+    inventory_manager: "/inventory-manager",
+    service_engineer: "/service-engineer",
+    sales_order_manager: "/sales-order-manager",
+    dealer: "/dealer-portal",
+  };
 
-        // Check if path is protected OR root '/'
-        const isProtectedRoute =
-            Object.values(roleDashboards).some((d) => path.startsWith(d)) ||
-            path.startsWith("/inventory") ||
-            path.startsWith("/product-catalog") ||
-            path.startsWith("/oem-onboarding") ||
-            path.startsWith("/deals") ||
-            path.startsWith("/leads") ||
-            path.startsWith("/approvals") ||
-            path.startsWith("/orders") ||
-            path.startsWith("/provisions") ||
-            path.startsWith("/disputes");
-
-        if (isProtectedRoute || path === "/") {
-            const url = request.nextUrl.clone();
-            url.pathname = "/login";
-            return NextResponse.redirect(url);
-        }
-
-        return response;
+  // ---------- 1) NOT LOGGED IN ----------
+  if (!user) {
+    // Allow auth + login + api routes (important for OAuth/callbacks and server actions)
+    if (
+      path === "/login" ||
+      path.startsWith("/api") ||
+      path.startsWith("/auth")
+    ) {
+      return response;
     }
 
-    // 2. If logged in
-    const { data: profile } = await supabase
-        .from("users")
-        .select("role")
-        .eq("id", user.id)
-        .single();
+    // Top-level modules (Phase A + future)
+    const modulePrefixes = [
+      "/inventory",
+      "/product-catalog",
+      "/oem-onboarding",
+      "/deals",
+      "/leads",
+      "/approvals",
+      "/orders",
+      "/provisions",
+      "/disputes",
+    ];
 
-    const rawRole = profile?.role || "user";
-    const role = rawRole.toLowerCase();
-    const myDashboard = roleDashboards[role] || "/";
+    const isRoleDashboard = Object.values(roleDashboards).some((d) => path.startsWith(d));
+    const isModuleRoute = modulePrefixes.some((p) => path.startsWith(p));
 
-    // Redirection from /login or / or /dashboard
-    if (path === "/" || path === "/login" || path === "/dashboard") {
-        // If logged in, never stay on /login
-        if (path === "/login") {
-            return NextResponse.redirect(new URL(myDashboard, request.url));
-        }
-
-        // Optional: redirect / and /dashboard to role dashboard when role is known
-        if (path === "/" || path === "/dashboard") {
-            if (myDashboard !== "/") {
-                return NextResponse.redirect(new URL(myDashboard, request.url));
-            }
-        }
-
-        return response; // allow '/' for 'user'
-    }
-
-    // Role-based path protection
-    const roles = Object.keys(roleDashboards);
-    const matchedRole = roles.find((r) => path.startsWith(roleDashboards[r]));
-
-    // If accessing another role's path and not CEO
-    if (matchedRole && matchedRole !== role && role !== "ceo") {
-        return NextResponse.redirect(new URL(myDashboard, request.url));
+    // Root is protected in your product behavior (forces login)
+    if (path === "/" || isRoleDashboard || isModuleRoute) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      return NextResponse.redirect(url);
     }
 
     return response;
+  }
+
+  // ---------- 2) LOGGED IN ----------
+  const { data: profile } = await supabase
+    .from("users")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  const rawRole = profile?.role || "user";
+  const role = rawRole.toLowerCase();
+
+  const myDashboard = roleDashboards[role] || "/";
+
+  // Redirect away from /login, and optionally from / and /dashboard
+  if (path === "/login") {
+    return NextResponse.redirect(new URL(myDashboard, request.url));
+  }
+
+  if (path === "/" || path === "/dashboard") {
+    if (myDashboard !== "/") {
+      return NextResponse.redirect(new URL(myDashboard, request.url));
+    }
+    return response; // allow '/' for 'user'
+  }
+
+  // Role-based path protection: block users entering other role dashboard paths (unless CEO)
+  const roles = Object.keys(roleDashboards);
+  const matchedRole = roles.find((r) => path.startsWith(roleDashboards[r]));
+
+  if (matchedRole && matchedRole !== role && role !== "ceo") {
+    return NextResponse.redirect(new URL(myDashboard, request.url));
+  }
+
+  return response;
 }
 
 export const config = {
-    matcher: [
-        "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
-    ],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
 };

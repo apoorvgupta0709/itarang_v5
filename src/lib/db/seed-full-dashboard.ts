@@ -351,6 +351,9 @@ async function seed() {
         oem_invoice_number: 'INV-OEM-001',
         oem_invoice_date: new Date(),
         status: 'available', // Checked by CEO dashboard for Inventory Value
+        uploaded_at: new Date(),
+        uploaded_by: ceoId,
+        warranty_months: 36,
         created_by: ceoId
     }));
     await db.insert(inventory).values(invValues).onConflictDoNothing();
@@ -401,7 +404,6 @@ async function seed() {
         // This means the API Route is likely Broken/Mocked aggressively or using a field that doesn't exist.
         // I will fix this in Route Refactor. I will use `delivery_status`.
 
-        delivery_status: 'pending',
         created_by: salesManagerId
     }).onConflictDoNothing();
 

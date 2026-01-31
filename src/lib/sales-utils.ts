@@ -82,8 +82,8 @@ export async function updateReorderTat(accountId: string, currentOrderId: string
     const now = new Date();
     const tatDays = Math.floor((now.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
 
-    // Update the current order with this TAT
-    await db.update(orders).set({ reorder_tat_days: tatDays }).where(eq(orders.id, currentOrderId));
+    // Update the current order with this TAT (Note: reorder_tat_days removed from schema)
+    // await db.update(orders).set({ reorder_tat_days: tatDays }).where(eq(orders.id, currentOrderId));
 
     // Update account for next cycle
     await db.update(accounts).set({ last_order_fulfilled_at: now }).where(eq(accounts.id, accountId));

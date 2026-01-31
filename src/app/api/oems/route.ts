@@ -1,79 +1,119 @@
-import { z } from 'zod';
-import { db } from '@/lib/db';
-import { oems, oemContacts } from '@/lib/db/schema';
-import { requireRole } from '@/lib/auth-utils';
-import { successResponse, withErrorHandler, generateId } from '@/lib/api-utils';
-import { triggerN8nWebhook } from '@/lib/n8n';
+import { db } from "@/lib/db";
+import { oems, oemContacts } from "@/lib/db/schema";
+import { eq, desc } from "drizzle-orm";
+import { requireAuth } from "@/lib/auth-utils";
+import { generateId, successResponse, withErrorHandler } from "@/lib/api-utils";
+import { z } from "zod";
 
-const oemSchema = z.object({
-    business_entity_name: z.string().min(1),
-    gstin: z.string().regex(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/),
-    cin: z.string().min(1),
-    bank_account_number: z.string().min(1),
-    ifsc_code: z.string().regex(/^[A-Z]{4}0[A-Z0-9]{6}$/),
-    bank_proof_url: z.string().url(),
-    contacts: z.array(z.object({
-        contact_role: z.enum(['sales_head', 'sales_manager', 'finance_manager']),
-        contact_name: z.string().min(1),
-        contact_phone: z.string().regex(/^\+91-[0-9]{10}$/),
-        contact_email: z.string().email(),
-    })).length(3, 'Exactly 3 contacts required'),
+const ContactSchema = z.object({
+    name: z.string().min(1),
+    phone: z.string().min(8),
+    email: z.string().email(),
+});
+
+const CreateOemSchema = z.object({
+    business_entity_name: z.string().min(2),
+    gstin: z.string().min(10),
+    pan: z.string().optional().nullable(),
+    cin: z.string().optional().nullable(),
+
+    address_line1: z.string().optional().nullable(),
+    address_line2: z.string().optional().nullable(),
+    city: z.string().optional().nullable(),
+    state: z.string().optional().nullable(),
+    pincode: z.string().optional().nullable(),
+
+    bank_name: z.string().optional().nullable(),
+    bank_account_number: z.string().min(5),
+    ifsc_code: z.string().min(5),
+    bank_proof_url: z.string().optional().nullable(),
+
+    contacts: z.object({
+        sales_head: ContactSchema,
+        sales_manager: ContactSchema,
+        finance_manager: ContactSchema,
+    }),
+});
+
+export const GET = withErrorHandler(async () => {
+    const rows = await db
+        .select()
+        .from(oems)
+        .orderBy(desc(oems.created_at));
+
+    const contacts = await db.select().from(oemContacts);
+
+    const contactsByOem: Record<string, any[]> = {};
+    for (const c of contacts) {
+        contactsByOem[c.oem_id] = contactsByOem[c.oem_id] || [];
+        contactsByOem[c.oem_id].push(c);
+    }
+
+    const items = rows.map((o) => ({
+        ...o,
+        contacts: contactsByOem[o.id] || [],
+    }));
+
+    return successResponse({ items });
 });
 
 export const POST = withErrorHandler(async (req: Request) => {
-    console.log('[OEM API] Starting registration...');
-    const user = await requireRole(['sales_order_manager', 'ceo']);
-    console.log('[OEM API] Auth check passed:', user.id);
+    const user = await requireAuth();
+    const body = CreateOemSchema.parse(await req.json());
 
-    const body = await req.json();
-    console.log('[OEM API] Request body received:', body);
+    const oemId = await generateId("OEM", oems);
 
-    const validated = oemSchema.parse(body);
-    console.log('[OEM API] Validation passed');
-
-    // Validate unique contact roles
-    const roles = validated.contacts.map(c => c.contact_role);
-    if (new Set(roles).size !== 3) {
-        throw new Error('Must have one contact for each role: sales_head, sales_manager, finance_manager');
-    }
-
-    const oemId = await generateId('OEM', oems);
-    console.log('[OEM API] Generated ID:', oemId);
-
-    const result = await db.transaction(async (tx) => {
-        console.log('[OEM API] Starting DB transaction...');
-        const { contacts: contactData, ...oemInfo } = validated;
-
-        const [oem] = await tx.insert(oems).values({
+    const [created] = await db
+        .insert(oems)
+        .values({
             id: oemId,
-            ...oemInfo,
-            status: 'active',
+            business_entity_name: body.business_entity_name,
+            gstin: body.gstin,
+            pan: body.pan ?? null,
+            cin: body.cin ?? null,
+            address_line1: body.address_line1 ?? null,
+            address_line2: body.address_line2 ?? null,
+            city: body.city ?? null,
+            state: body.state ?? null,
+            pincode: body.pincode ?? null,
+            bank_name: body.bank_name ?? null,
+            bank_account_number: body.bank_account_number,
+            ifsc_code: body.ifsc_code,
+            bank_proof_url: body.bank_proof_url ?? null,
+            status: "active",
             created_by: user.id,
-        }).returning();
-        console.log('[OEM API] OEM record inserted');
+            updated_at: new Date(),
+        })
+        .returning();
 
-        const contacts = await tx.insert(oemContacts).values(
-            contactData.map((c, i) => ({
-                id: `${oemId}-${i + 1}`,
-                oem_id: oemId,
-                ...c,
-            }))
-        ).returning();
-        console.log('[OEM API] Contacts inserted');
+    const contactRows = [
+        {
+            id: `${oemId}-sales_head-001`,
+            oem_id: oemId,
+            contact_role: "sales_head",
+            contact_name: body.contacts.sales_head.name,
+            contact_phone: body.contacts.sales_head.phone,
+            contact_email: body.contacts.sales_head.email,
+        },
+        {
+            id: `${oemId}-sales_manager-001`,
+            oem_id: oemId,
+            contact_role: "sales_manager",
+            contact_name: body.contacts.sales_manager.name,
+            contact_phone: body.contacts.sales_manager.phone,
+            contact_email: body.contacts.sales_manager.email,
+        },
+        {
+            id: `${oemId}-finance_manager-001`,
+            oem_id: oemId,
+            contact_role: "finance_manager",
+            contact_name: body.contacts.finance_manager.name,
+            contact_phone: body.contacts.finance_manager.phone,
+            contact_email: body.contacts.finance_manager.email,
+        },
+    ];
 
-        return { oem, contacts };
-    });
+    await db.insert(oemContacts).values(contactRows);
 
-    console.log('[OEM API] Transaction completed. Triggering webhook...');
-    try {
-        await triggerN8nWebhook('oem-onboarded', {
-            oem_id: result.oem.id,
-            contacts: result.contacts,
-        });
-        console.log('[OEM API] Webhook triggered');
-    } catch (webhookErr) {
-        console.error('[OEM API] Webhook failed (non-blocking):', webhookErr);
-    }
-
-    return successResponse(result, 201);
+    return successResponse({ item: created });
 });

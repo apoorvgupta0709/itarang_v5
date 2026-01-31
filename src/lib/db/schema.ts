@@ -37,16 +37,20 @@ export const oems = pgTable('oems', {
     business_entity_name: text('business_entity_name').notNull(),
     gstin: varchar('gstin', { length: 15 }).notNull().unique(),
     pan: varchar('pan', { length: 10 }),
+    cin: varchar('cin', { length: 21 }), // <-- ADDED (BRD field)
+
     address_line1: text('address_line1'),
     address_line2: text('address_line2'),
     city: text('city'),
     state: text('state'),
     pincode: varchar('pincode', { length: 6 }),
+
     bank_name: text('bank_name'),
     bank_account_number: text('bank_account_number').notNull(),
     ifsc_code: varchar('ifsc_code', { length: 11 }).notNull(),
     bank_proof_url: text('bank_proof_url'),
-    status: varchar('status', { length: 20 }).default('active').notNull(),
+
+    status: varchar('status', { length: 20 }).default('active').notNull(), // active, inactive
     created_by: uuid('created_by').references(() => users.id),
     created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -72,6 +76,14 @@ export const inventory = pgTable('inventory', {
     asset_category: text('asset_category').notNull(),
     asset_type: text('asset_type').notNull(),
     model_type: text('model_type').notNull(),
+
+    // NEW (Phase-A)
+    uploaded_at: timestamp('uploaded_at', { withTimezone: true }).defaultNow().notNull(),
+    uploaded_by: uuid('uploaded_by').references(() => users.id).notNull(),
+    challan_number: text('challan_number'),
+    challan_date: timestamp('challan_date', { withTimezone: true }),
+    iot_imei_no: varchar('iot_imei_no', { length: 255 }).unique(),
+    warranty_months: integer('warranty_months').notNull(),
 
     // Serialization
     is_serialized: boolean('is_serialized').default(true).notNull(),
@@ -107,7 +119,6 @@ export const inventory = pgTable('inventory', {
     created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
-
 // --- DEALER SALES ---
 
 export const leads = pgTable('leads', {

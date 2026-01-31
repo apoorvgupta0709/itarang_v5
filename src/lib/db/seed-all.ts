@@ -16,13 +16,13 @@ import {
     inventory
 } from './schema';
 import { nanoid } from 'nanoid';
-import { v4 as uuidv4 } from 'uuid';
+import { eq, and } from 'drizzle-orm';
 
 async function seed() {
     console.log('🌱 Starting full database seed...');
 
     // 1. Ensure a CEO exists (required for created_by fields)
-    const [ceo] = await db.select().from(users).where(({ role }) => role === 'ceo').limit(1);
+    const [ceo] = await db.select().from(users).where(eq(users.role, 'ceo')).limit(1);
     if (!ceo) {
         throw new Error('No CEO found in database. Run check-db.ts to verify users.');
     }
@@ -181,6 +181,8 @@ async function seed() {
             oem_invoice_number: 'INV-LG-001',
             oem_invoice_date: new Date(),
             status: 'available',
+            warranty_months: 36,
+            uploaded_by: ceoId,
             created_by: ceoId,
         }
     ];

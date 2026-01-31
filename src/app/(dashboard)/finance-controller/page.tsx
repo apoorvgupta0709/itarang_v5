@@ -2,7 +2,7 @@
 
 import { KPICard } from '@/components/shared/kpi-card';
 import { MetricsChart } from '@/components/shared/charts';
-import { DataTable } from '@/components/shared/data-table';
+import { DataTable, type Column } from '@/components/shared/data-table';
 import {
     FileText,
     AlertTriangle,
@@ -62,7 +62,7 @@ export default function FinanceControllerDashboard() {
         }
     ];
 
-    const invoicingColumns = [
+    const invoicingColumns: Column<any>[] = [
         { header: 'Deal ID', accessor: 'id' },
         { header: 'Customer / OEM', accessor: 'name' },
         {
@@ -73,7 +73,7 @@ export default function FinanceControllerDashboard() {
         {
             header: 'Approval Date',
             accessor: 'date',
-            render: (val: string) => new Date(val).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+            render: (val: any) => new Date(val).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
         },
         {
             header: 'Action',

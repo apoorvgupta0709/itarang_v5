@@ -2,7 +2,7 @@
 
 import { KPICard } from '@/components/shared/kpi-card';
 import { MetricsChart } from '@/components/shared/charts';
-import { DataTable } from '@/components/shared/data-table';
+import { DataTable, type Column } from '@/components/shared/data-table';
 import {
     Users,
     TrendingUp,
@@ -60,7 +60,7 @@ export default function BusinessHeadDashboard() {
         }
     ];
 
-    const approvalColumns = [
+    const approvalColumns: Column<any>[] = [
         { header: 'Deal ID', accessor: 'id' },
         { header: 'OEM', accessor: 'oem' },
         {
@@ -72,9 +72,9 @@ export default function BusinessHeadDashboard() {
         {
             header: 'Status',
             accessor: 'status',
-            render: (val: string) => (
+            render: (val: any) => (
                 <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-xs font-medium">
-                    {val.replace(/_/g, ' ')}
+                    {String(val).replace(/_/g, ' ')}
                 </span>
             )
         },

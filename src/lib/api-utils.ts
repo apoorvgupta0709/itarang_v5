@@ -19,10 +19,12 @@ export function errorResponse(message: string, status = 500) {
     }, { status });
 }
 
-export function withErrorHandler(handler: Function) {
-    return async (req: Request, context?: any) => {
+export function withErrorHandler<T extends any[]>(
+    handler: (...args: T) => Promise<Response>
+) {
+    return async (...args: T): Promise<Response> => {
         try {
-            return await handler(req, context);
+            return await handler(...args);
         } catch (error: any) {
             // Re-throw Next.js redirect errors
             if (error.digest?.startsWith('NEXT_REDIRECT')) {

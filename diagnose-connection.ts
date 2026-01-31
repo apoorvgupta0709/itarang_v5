@@ -3,7 +3,7 @@ import { config } from 'dotenv';
 import path from 'path';
 config({ path: path.resolve(process.cwd(), '.env.local') });
 
-import { db } from './src/lib/db/index.ts';
+import { db } from './src/lib/db/index';
 import { sql } from 'drizzle-orm';
 
 async function diagnose() {

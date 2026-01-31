@@ -9,13 +9,13 @@ const rejectionSchema = z.object({
     rejection_reason: z.string().min(5, 'Rejection reason is required (min 5 chars)'),
 });
 
-export const POST = withErrorHandler(async (req: Request, { params }: { params: { id: string } }) => {
+export const POST = withErrorHandler(async (req: Request, { params }: { params: Promise<{ id: string }> }) => {
     const body = await req.json();
     const result = rejectionSchema.safeParse(body);
-    if (!result.success) return errorResponse(result.error.errors[0].message, 400);
+    if (!result.success) return errorResponse(result.error.issues[0].message, 400);
     const { rejection_reason } = result.data;
 
-    const approvalId = params.id;
+    const { id: approvalId } = await params;
 
     // 1. Fetch Approval record
     const [approval] = await db.select().from(approvals).where(eq(approvals.id, approvalId)).limit(1);

@@ -189,7 +189,7 @@ export default function NewProvisionPage() {
                                 <Button
                                     type="button"
                                     variant="ghost"
-                                    size="icon"
+                                    size="sm"
                                     className="text-red-400 hover:text-red-600 hover:bg-red-50"
                                     onClick={() => removeItem(index)}
                                 >
@@ -201,7 +201,7 @@ export default function NewProvisionPage() {
                         {items.length === 0 && (
                             <div className="text-center py-8 border-2 border-dashed border-gray-100 rounded-xl">
                                 <p className="text-sm text-gray-400">No products added yet.</p>
-                                <Button type="button" variant="link" size="sm" onClick={addItem} className="text-brand-600 font-bold">
+                                <Button type="button" variant="outline" size="sm" onClick={addItem} className="text-brand-600 font-bold">
                                     Tap to add product
                                 </Button>
                             </div>
@@ -213,7 +213,8 @@ export default function NewProvisionPage() {
                     <Button
                         type="submit"
                         disabled={loading || items.length === 0}
-                        className="bg-brand-600 hover:bg-brand-700 min-w-[200px] h-12 rounded-xl text-lg font-bold shadow-lg"
+                        variant="primary"
+                        className="min-w-[200px] h-12 rounded-xl text-lg font-bold shadow-lg"
                     >
                         {loading ? 'Creating...' : 'Submit Provision Request'}
                         {!loading && <CheckCircle className="ml-2 w-5 h-5" />}

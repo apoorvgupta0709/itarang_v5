@@ -14,7 +14,8 @@ import {
     ShieldCheck,
     ArrowRight,
     Download,
-    AlertTriangle
+    AlertTriangle,
+    Truck
 } from 'lucide-react';
 
 interface OrderDetailsClientProps {
@@ -268,7 +269,7 @@ export default function OrderDetailsClient({ order: initialOrder, approvals, use
                                     <p className="text-sm text-gray-500 mt-2 font-medium leading-relaxed">Financials have been verified by Sales, Operations, and Finance teams.</p>
                                 </div>
                                 <div className="pt-4 space-y-3">
-                                    <Button className="w-full h-12 rounded-xl bg-gray-900 hover:bg-black font-bold flex items-center justify-center gap-2">
+                                    <Button variant="primary" className="w-full h-12 rounded-xl bg-gray-900 hover:bg-black font-bold flex items-center justify-center gap-2">
                                         <IndianRupee className="w-4 h-4" /> Record Payment
                                     </Button>
                                     <Button variant="outline" className="w-full h-12 rounded-xl border-gray-200 font-bold flex items-center justify-center gap-2">

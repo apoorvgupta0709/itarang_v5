@@ -10,13 +10,13 @@ const decisionSchema = z.object({
     comments: z.string().optional(),
 });
 
-export const POST = withErrorHandler(async (req: Request, { params }: { params: { id: string } }) => {
+export const POST = withErrorHandler(async (req: Request, { params }: { params: Promise<{ id: string }> }) => {
     const body = await req.json();
     const result = decisionSchema.safeParse(body);
     if (!result.success) return errorResponse('Validation Error', 400);
     const { comments } = result.data;
 
-    const approvalId = params.id;
+    const { id: approvalId } = await params;
 
     // 1. Fetch Approval record
     const [approval] = await db.select().from(approvals).where(eq(approvals.id, approvalId)).limit(1);

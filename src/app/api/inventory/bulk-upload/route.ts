@@ -103,6 +103,7 @@ export const POST = withErrorHandler(async (req: Request) => {
                 id: await generateId('INV', inventory),
                 product_id: product.id,
                 oem_id: oem.id,
+                created_by: user.id,
 
                 // Denormalized Fields (SOP 7.4)
                 oem_name: oem.business_entity_name,
@@ -117,11 +118,11 @@ export const POST = withErrorHandler(async (req: Request) => {
 
                 quantity: validated.quantity,
                 warranty_months: validated.warranty_months,
-                manufacturing_date: validated.manufacturing_date ? new Date(validated.manufacturing_date) : null,
-                expiry_date: validated.expiry_date ? new Date(validated.expiry_date) : null,
+                manufacturing_date: validated.manufacturing_date ? new Date(validated.manufacturing_date) : new Date(),
+                expiry_date: validated.expiry_date ? new Date(validated.expiry_date) : new Date(),
 
-                oem_invoice_number: validated.oem_invoice_number,
-                oem_invoice_date: validated.oem_invoice_date ? new Date(validated.oem_invoice_date) : null,
+                oem_invoice_number: validated.oem_invoice_number || 'PENDING',
+                oem_invoice_date: validated.oem_invoice_date ? new Date(validated.oem_invoice_date) : new Date(),
                 oem_invoice_url: validated.oem_invoice_url,
                 challan_number: validated.challan_number,
                 challan_date: validated.challan_date ? new Date(validated.challan_date) : null,
@@ -131,7 +132,7 @@ export const POST = withErrorHandler(async (req: Request) => {
                 warranty_document_url: validated.warranty_document_url,
 
                 inventory_amount: validated.inventory_amount.toString(),
-                gst_percent: validated.gst_percent,
+                gst_percent: validated.gst_percent.toString(),
                 gst_amount: gst_amount.toString(),
                 final_amount: final_amount.toString(),
 
