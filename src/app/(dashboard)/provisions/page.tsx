@@ -1,116 +1,107 @@
+import Link from 'next/link';
+import { desc } from 'drizzle-orm';
+
+import { Button } from '@/components/ui/button';
+import { requireAuth } from '@/lib/auth-utils';
 import { db } from '@/lib/db';
 import { provisions } from '@/lib/db/schema';
-import { desc } from 'drizzle-orm';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Plus, Package, Clock, CheckCircle, Truck, AlertCircle } from 'lucide-react';
-import { requireAuth } from '@/lib/auth-utils';
 
 export const dynamic = 'force-dynamic';
 
-const STATUS_CONFIG: Record<string, { label: string, color: string, icon: any }> = {
-    pending: { label: 'Pending', color: 'bg-yellow-100 text-yellow-800 border-yellow-200', icon: Clock },
-    acknowledged: { label: 'Acknowledged', color: 'bg-blue-100 text-blue-800 border-blue-200', icon: CheckCircle },
-    in_production: { label: 'In Production', color: 'bg-purple-100 text-purple-800 border-purple-200', icon: Truck },
-    ready_for_pdi: { label: 'Ready for PDI', color: 'bg-green-100 text-green-800 border-green-200', icon: AlertCircle },
-    completed: { label: 'Completed', color: 'bg-gray-100 text-gray-800 border-gray-200', icon: CheckCircle },
-    cancelled: { label: 'Cancelled', color: 'bg-red-100 text-red-800 border-red-200', icon: AlertCircle },
+const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
+    pending: { label: 'Pending', className: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
+    req_sent: { label: 'Request Sent', className: 'bg-blue-50 text-blue-700 border-blue-200' },
+    acknowledged: { label: 'Acknowledged', className: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+    in_production: { label: 'In Production', className: 'bg-purple-50 text-purple-700 border-purple-200' },
+    ready_for_pdi: { label: 'Ready for PDI', className: 'bg-green-50 text-green-700 border-green-200' },
+    pdi_req_sent: { label: 'PDI Requested', className: 'bg-teal-50 text-teal-700 border-teal-200' },
+    completed: { label: 'Completed', className: 'bg-gray-50 text-gray-700 border-gray-200' },
+    not_available: { label: 'Products Not Available', className: 'bg-red-50 text-red-700 border-red-200' },
+    cancelled: { label: 'Cancelled', className: 'bg-red-50 text-red-700 border-red-200' },
 };
 
-export default async function ProvisionsPage() {
+function formatDate(d: Date | string) {
+    const date = typeof d === 'string' ? new Date(d) : d;
+    return date.toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+    });
+}
+
+export default async function ProcurementOrdersPage() {
     await requireAuth();
 
-    const allProvisions = await db.select()
+    const rows = await db
+        .select()
         .from(provisions)
         .orderBy(desc(provisions.created_at));
 
     return (
         <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center mb-8">
+            <div className="flex items-start justify-between gap-4 mb-6">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Provisions</h1>
-                    <p className="text-sm text-gray-500 mt-1">Track asset procurement requests from OEMs</p>
+                    <h1 className="text-2xl font-bold text-gray-900">Procurement Orders</h1>
+                    <p className="text-sm text-gray-500 mt-1">
+                        Create provisions, send procurement requests to OEMs, and track replies + PDI status.
+                    </p>
                 </div>
                 <Link href="/provisions/new">
-                    <Button variant="primary">
-                        <Plus className="w-4 h-4 mr-2" />
-                        Create Provision
-                    </Button>
+                    <Button variant="primary">Create Provision</Button>
                 </Link>
             </div>
 
-            <div className="grid gap-6">
-                {allProvisions.map((prov) => {
-                    const status = STATUS_CONFIG[prov.status] || STATUS_CONFIG.pending;
-                    const StatusIcon = status.icon;
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm">
+                        <thead className="bg-gray-50 border-b border-gray-200">
+                            <tr>
+                                <th className="text-left font-semibold text-gray-700 px-6 py-3">Order ID</th>
+                                <th className="text-left font-semibold text-gray-700 px-6 py-3">Date</th>
+                                <th className="text-left font-semibold text-gray-700 px-6 py-3">Description</th>
+                                <th className="text-left font-semibold text-gray-700 px-6 py-3">Status</th>
+                                <th className="text-right font-semibold text-gray-700 px-6 py-3">View Details</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                            {rows.map((r) => {
+                                const statusCfg = STATUS_CONFIG[r.status] || {
+                                    label: r.status || 'Unknown',
+                                    className: 'bg-gray-50 text-gray-700 border-gray-200',
+                                };
 
-                    return (
-                        <div key={prov.id} className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
-                            <div className="flex justify-between items-start mb-4">
-                                <div>
-                                    <div className="flex items-center gap-3 mb-1">
-                                        <h3 className="text-lg font-bold text-gray-900">{prov.id}</h3>
-                                        <span className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5 ${status.color}`}>
-                                            <StatusIcon className="w-3.5 h-3.5" />
-                                            {status.label.toUpperCase()}
-                                        </span>
-                                    </div>
-                                    <p className="text-sm font-medium text-brand-600">{prov.oem_name}</p>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-xs text-gray-400 font-medium uppercase tracking-wider mb-1">Expected Delivery</p>
-                                    <p className="text-sm font-bold text-gray-800">
-                                        {new Date(prov.expected_delivery_date).toLocaleDateString('en-IN', {
-                                            day: '2-digit',
-                                            month: 'short',
-                                            year: 'numeric'
-                                        })}
-                                    </p>
-                                </div>
-                            </div>
+                                return (
+                                    <tr key={r.id} className="hover:bg-gray-50/60">
+                                        <td className="px-6 py-4 font-mono text-gray-900">{r.id}</td>
+                                        <td className="px-6 py-4 text-gray-700">{formatDate(r.created_at)}</td>
+                                        <td className="px-6 py-4 text-gray-700">{r.remarks || '—'}</td>
+                                        <td className="px-6 py-4">
+                                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full border text-xs font-semibold ${statusCfg.className}`}>
+                                                {statusCfg.label}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 text-right">
+                                            <Link
+                                                href={`/provisions/${r.id}`}
+                                                className="text-brand-700 hover:text-brand-800 font-semibold"
+                                            >
+                                                View
+                                            </Link>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
 
-                            <div className="border-t border-gray-100 pt-4 mt-4">
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                    {((prov.products as any[]) || []).map((prod, idx) => (
-                                        <div key={idx} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
-                                            <div className="p-2 bg-white rounded-lg border border-gray-200">
-                                                <Package className="w-4 h-4 text-gray-400" />
-                                            </div>
-                                            <div>
-                                                <p className="text-xs text-gray-500 font-medium truncate">{prod.model_type}</p>
-                                                <p className="text-sm font-bold text-gray-900">{prod.quantity} Units</p>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div className="mt-6 flex justify-end gap-3">
-                                <Link href={`/provisions/${prov.id}`}>
-                                    <Button variant="outline" size="sm">View Details</Button>
-                                </Link>
-                                {prov.status === 'ready_for_pdi' && (
-                                    <Link href={`/service-engineer/pdi/provision/${prov.id}`}>
-                                        <Button variant="primary" size="sm">Start PDI</Button>
-                                    </Link>
-                                )}
-                            </div>
-                        </div>
-                    );
-                })}
-
-                {allProvisions.length === 0 && (
-                    <div className="bg-white rounded-2xl border border-dashed border-gray-300 p-20 text-center">
-                        <div className="bg-gray-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <Plus className="w-8 h-8 text-gray-300" />
-                        </div>
-                        <h3 className="text-lg font-bold text-gray-400">No Provisions Found</h3>
-                        <p className="text-sm text-gray-400 mt-1">Start by creating your first procurement request.</p>
-                        <Link href="/provisions/new" className="mt-6 inline-block">
-                            <Button variant="outline">Create Provision</Button>
-                        </Link>
-                    </div>
-                )}
+                            {rows.length === 0 && (
+                                <tr>
+                                    <td className="px-6 py-10 text-center text-gray-500" colSpan={5}>
+                                        No procurement orders yet.
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     );

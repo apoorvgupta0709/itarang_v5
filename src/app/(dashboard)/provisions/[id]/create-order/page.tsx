@@ -1,228 +1,131 @@
-'use client';
-
-import { useState, useEffect, use } from 'react';
-import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { ShoppingCart, CheckCircle2, ChevronLeft, Package, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
+import { eq } from 'drizzle-orm';
 
-interface InventoryItem {
-    id: string;
-    serial_number: string | null;
-    model_type: string;
-    final_amount: string;
-    status: string;
+import { Button } from '@/components/ui/button';
+import { requireAuth } from '@/lib/auth-utils';
+import { db } from '@/lib/db';
+import { oems, provisions } from '@/lib/db/schema';
+
+export const dynamic = 'force-dynamic';
+
+const STATUS_LABEL: Record<string, string> = {
+    pending: 'Pending',
+    req_sent: 'Procurement request sent to OEM',
+    acknowledged: 'Acknowledged by OEM',
+    in_production: 'In production',
+    ready_for_pdi: 'Ready for PDI',
+    pdi_req_sent: 'PDI request sent',
+    completed: 'Completed',
+    not_available: 'Products not available',
+    cancelled: 'Cancelled',
+};
+
+function formatDateTime(d: Date | string) {
+    const date = typeof d === 'string' ? new Date(d) : d;
+    return date.toLocaleString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
 }
 
-interface Provision {
-    id: string;
-    oem_id: string;
-    oem_name: string;
-}
+export default async function ProvisionDetailsPage({ params }: { params: { id: string } }) {
+    await requireAuth();
 
-export default function CreateOrderPage({ params }: { params: Promise<{ id: string }> }) {
-    const { id: provisionId } = use(params);
-    const router = useRouter();
-    const [loading, setLoading] = useState(false);
-    const [provision, setProvision] = useState<Provision | null>(null);
-    const [items, setItems] = useState<InventoryItem[]>([]);
-    const [selectedItems, setSelectedItems] = useState<string[]>([]);
-    const [paymentTerm, setPaymentTerm] = useState<'advance' | 'credit'>('advance');
-    const [creditDays, setCreditDays] = useState('30');
-    const [expectedDate, setExpectedDate] = useState('');
+    const provisionId = params.id;
 
-    useEffect(() => {
-        const fetchData = async () => {
-            const res = await fetch(`/api/provisions/inventory?provision_id=${provisionId}`);
-            const data = await res.json();
-            if (data.success) {
-                setProvision(data.data.provision);
-                setItems(data.data.items.filter((i: any) => i.status === 'available'));
-            }
-        };
-        fetchData();
-    }, [provisionId]);
+    const [prov] = await db
+        .select()
+        .from(provisions)
+        .where(eq(provisions.id, provisionId))
+        .limit(1);
 
-    const toggleItem = (itemId: string) => {
-        setSelectedItems(prev =>
-            prev.includes(itemId) ? prev.filter(id => id !== itemId) : [...prev, itemId]
+    if (!prov) {
+        return (
+            <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+                <h1 className="text-xl font-bold text-gray-900">Provision not found</h1>
+                <p className="text-sm text-gray-500 mt-2">ID: {provisionId}</p>
+                <div className="mt-6">
+                    <Link href="/provisions">
+                        <Button variant="outline">Back to Procurement Orders</Button>
+                    </Link>
+                </div>
+            </div>
         );
-    };
+    }
 
-    const totalAmount = items
-        .filter(i => selectedItems.includes(i.id))
-        .reduce((sum, i) => sum + parseFloat(i.final_amount), 0);
+    const [oem] = await db
+        .select()
+        .from(oems)
+        .where(eq(oems.id, prov.oem_id))
+        .limit(1);
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (selectedItems.length === 0) return;
-        setLoading(true);
-
-        try {
-            const res = await fetch('/api/orders', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    provision_id: provisionId,
-                    oem_id: provision?.oem_id,
-                    inventory_items: selectedItems,
-                    payment_term: paymentTerm,
-                    credit_period_days: paymentTerm === 'credit' ? parseInt(creditDays) : undefined,
-                    expected_delivery_date: expectedDate
-                }),
-            });
-
-            if (!res.ok) throw new Error('Failed to create order');
-            router.push('/orders');
-        } catch (err) {
-            alert('Error creating order');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    if (!provision) return <div className="p-8 text-center">Loading Provision details...</div>;
+    const products: Array<{ product_id: string; model_type?: string; quantity: number }> =
+        (prov.products as any) || [];
 
     return (
-        <div className="max-w-5xl mx-auto py-8 px-4">
-            <div className="mb-8 flex justify-between items-center">
+        <div className="max-w-5xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+            <div className="flex items-start justify-between gap-4">
                 <div>
-                    <Link href="/provisions" className="text-gray-500 hover:text-brand-600 flex items-center gap-1 text-sm mb-2">
-                        <ChevronLeft className="w-4 h-4" /> Back to Provisions
-                    </Link>
-                    <h1 className="text-2xl font-bold text-gray-900">Create Order from Provision</h1>
-                    <p className="text-sm text-gray-500 mt-1">Select PDI Pass assets to finalize purchase</p>
+                    <h1 className="text-2xl font-bold text-gray-900">Procurement Order</h1>
+                    <p className="text-sm text-gray-500 mt-1">
+                        <span className="font-mono">{prov.id}</span> • Created {formatDateTime(prov.created_at)}
+                    </p>
+                </div>
+                <Link href="/provisions">
+                    <Button variant="outline">Back</Button>
+                </Link>
+            </div>
+
+            <div className="mt-6 bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <p className="text-xs text-gray-500">OEM</p>
+                        <p className="text-sm font-semibold text-gray-900">{oem?.business_entity_name || prov.oem_name}</p>
+                    </div>
+                    <div>
+                        <p className="text-xs text-gray-500">Status</p>
+                        <p className="text-sm font-semibold text-gray-900">{STATUS_LABEL[prov.status] || prov.status}</p>
+                    </div>
+                    <div className="md:col-span-2">
+                        <p className="text-xs text-gray-500">Description</p>
+                        <p className="text-sm text-gray-900">{prov.remarks || '—'}</p>
+                    </div>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-2 space-y-6">
-                    {/* Item Selection */}
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                        <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                            <Package className="w-5 h-5 text-brand-600" />
-                            PDI Verified Assets
-                        </h3>
-
-                        <div className="space-y-3">
-                            {items.map((item) => (
-                                <div
-                                    key={item.id}
-                                    onClick={() => toggleItem(item.id)}
-                                    className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedItems.includes(item.id)
-                                            ? 'border-brand-500 bg-brand-50/50'
-                                            : 'border-gray-50 bg-gray-50/30 hover:border-gray-200'
-                                        }`}
-                                >
-                                    <div className="flex justify-between items-center">
-                                        <div className="flex items-center gap-4">
-                                            <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${selectedItems.includes(item.id) ? 'bg-brand-600 border-brand-600 text-white' : 'border-gray-300 bg-white'
-                                                }`}>
-                                                {selectedItems.includes(item.id) && <CheckCircle2 className="w-4 h-4" />}
-                                            </div>
-                                            <div>
-                                                <p className="font-bold text-gray-900">{item.serial_number || 'No Serial'}</p>
-                                                <p className="text-xs text-gray-500">{item.model_type}</p>
-                                            </div>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-sm font-bold text-gray-900">₹{item.final_amount}</p>
-                                            <span className="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-100 uppercase tracking-tighter">PDI PASS</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-
-                            {items.length === 0 && (
-                                <div className="text-center py-10 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
-                                    <AlertCircle className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-                                    <p className="text-gray-400 font-medium">No 'Available' assets found for this provision.</p>
-                                    <p className="text-xs text-gray-400 mt-1">Complete PDI for imported items first.</p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
+            <div className="mt-6 bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-200">
+                    <h2 className="text-base font-bold text-gray-900">Line items</h2>
                 </div>
-
-                <div className="space-y-6">
-                    {/* Summary & Terms */}
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col h-full sticky top-8">
-                        <h3 className="text-lg font-bold text-gray-900 mb-6">Order Summary</h3>
-
-                        <div className="space-y-4 flex-grow">
-                            <div>
-                                <Label className="text-xs uppercase tracking-wider text-gray-400">OEM</Label>
-                                <p className="font-bold text-gray-900">{provision.oem_name}</p>
-                            </div>
-
-                            <hr className="border-gray-50" />
-
-                            <div className="space-y-2">
-                                <Label>Payment Terms</Label>
-                                <div className="grid grid-cols-2 gap-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => setPaymentTerm('advance')}
-                                        className={`py-2 rounded-lg text-sm font-bold border-2 transition-all ${paymentTerm === 'advance' ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-gray-100 bg-white text-gray-500'}`}
-                                    >
-                                        Advance
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setPaymentTerm('credit')}
-                                        className={`py-2 rounded-lg text-sm font-bold border-2 transition-all ${paymentTerm === 'credit' ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-gray-100 bg-white text-gray-500'}`}
-                                    >
-                                        Credit
-                                    </button>
-                                </div>
-                            </div>
-
-                            {paymentTerm === 'credit' && (
-                                <div className="space-y-1">
-                                    <Label className="text-xs">Credit Period (Days)</Label>
-                                    <Input
-                                        type="number"
-                                        value={creditDays}
-                                        onChange={(e) => setCreditDays(e.target.value)}
-                                        className="h-10 rounded-xl border-gray-100"
-                                    />
-                                </div>
+                <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm">
+                        <thead className="bg-gray-50 border-b border-gray-200">
+                            <tr>
+                                <th className="text-left font-semibold text-gray-700 px-6 py-3">Product</th>
+                                <th className="text-left font-semibold text-gray-700 px-6 py-3">Product ID</th>
+                                <th className="text-right font-semibold text-gray-700 px-6 py-3">Qty</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                            {products.map((p, idx) => (
+                                <tr key={`${p.product_id}-${idx}`} className="hover:bg-gray-50/60">
+                                    <td className="px-6 py-4 text-gray-900 font-semibold">{p.model_type || p.product_id}</td>
+                                    <td className="px-6 py-4 text-gray-700 font-mono">{p.product_id}</td>
+                                    <td className="px-6 py-4 text-right text-gray-900 font-bold">{p.quantity}</td>
+                                </tr>
+                            ))}
+                            {products.length === 0 && (
+                                <tr>
+                                    <td className="px-6 py-10 text-center text-gray-500" colSpan={3}>
+                                        No line items found.
+                                    </td>
+                                </tr>
                             )}
-
-                            <div className="space-y-1">
-                                <Label className="text-xs">Exp. Delivery Date</Label>
-                                <Input
-                                    type="date"
-                                    value={expectedDate}
-                                    onChange={(e) => setExpectedDate(e.target.value)}
-                                    className="h-10 rounded-xl border-gray-100"
-                                    required
-                                />
-                            </div>
-                        </div>
-
-                        <div className="mt-8 pt-6 border-t-2 border-dashed border-gray-100 space-y-4">
-                            <div className="flex justify-between items-center text-sm font-medium text-gray-500">
-                                <span>Items Selected</span>
-                                <span>{selectedItems.length}</span>
-                            </div>
-                            <div className="flex justify-between items-end">
-                                <span className="text-sm font-bold text-gray-900">Total Payable</span>
-                                <span className="text-2xl font-black text-brand-600">₹{totalAmount.toLocaleString()}</span>
-                            </div>
-
-                            <Button
-                                onClick={handleSubmit}
-                                disabled={loading || selectedItems.length === 0}
-                                className="w-full h-14 rounded-2xl bg-brand-600 hover:bg-brand-700 text-lg font-bold shadow-xl shadow-brand-100"
-                            >
-                                {loading ? 'Processing...' : 'Create Order'}
-                                {!loading && <ShoppingCart className="ml-2 w-5 h-5" />}
-                            </Button>
-                        </div>
-                    </div>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>

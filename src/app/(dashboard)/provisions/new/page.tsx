@@ -1,226 +1,396 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
-import { Package, Plus, Trash2, Calendar, Building2, CheckCircle } from 'lucide-react';
 
-interface OEM {
-    id: string;
-    business_entity_name: string;
+type OEM = {
+  id: string;
+  business_entity_name: string;
+};
+
+type Product = {
+  id: string;
+  model_type: string;
+  asset_type: string;
+  asset_category: string;
+};
+
+type PreviewResponse = {
+  provision_id: string;
+  routing: {
+    email_to: string[];
+    email_cc: string[];
+    whatsapp_to_phone: string;
+  };
+  templates: {
+    email_subject: string;
+    email_body: string;
+    whatsapp_message: string;
+  };
+};
+
+function csvToEmails(csv: string) {
+  return Array.from(
+    new Set(
+      csv
+        .split(',')
+        .map((x) => x.trim().toLowerCase())
+        .filter(Boolean)
+    )
+  );
 }
 
-interface Product {
-    id: string;
-    model_type: string;
-    asset_type: string;
-}
+export default function CreateProvisionPage() {
+  const router = useRouter();
 
-export default function NewProvisionPage() {
-    const router = useRouter();
-    const [loading, setLoading] = useState(false);
-    const [oems, setOems] = useState<OEM[]>([]);
-    const [products, setProducts] = useState<Product[]>([]);
-    const [selectedOem, setSelectedOem] = useState('');
-    const [expectedDate, setExpectedDate] = useState('');
-    const [remarks, setRemarks] = useState('');
-    const [items, setItems] = useState<{ product_id: string, model_type: string, quantity: number }[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [oems, setOems] = useState<OEM[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [selectedOemId, setSelectedOemId] = useState('');
+  const [description, setDescription] = useState('');
+  const [search, setSearch] = useState('');
 
-    useEffect(() => {
-        const fetchData = async () => {
-            const [oemRes, prodRes] = await Promise.all([
-                fetch('/api/oems'),
-                fetch('/api/product-catalog')
-            ]);
-            const oemData = await oemRes.json();
-            const prodData = await prodRes.json();
-            setOems(oemData.data || []);
-            setProducts(prodData.data || []);
+  const [qtyByProduct, setQtyByProduct] = useState<Record<string, number>>({});
+
+  const [preview, setPreview] = useState<PreviewResponse | null>(null);
+
+  // routing fields (auto-populated from DB via preview)
+  const [emailToCsv, setEmailToCsv] = useState('');
+  const [emailCcCsv, setEmailCcCsv] = useState('');
+  const [whatsappToPhone, setWhatsappToPhone] = useState('');
+
+  // templates
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailBody, setEmailBody] = useState('');
+  const [whatsappMessage, setWhatsappMessage] = useState('');
+
+  useEffect(() => {
+    const loadOems = async () => {
+      const res = await fetch('/api/oems');
+      const json = await res.json();
+      setOems(json?.data?.items || []);
+    };
+    loadOems().catch(console.error);
+  }, []);
+
+  useEffect(() => {
+    const loadProducts = async () => {
+      if (!selectedOemId) {
+        setProducts([]);
+        setQtyByProduct({});
+        setPreview(null);
+        return;
+      }
+      const res = await fetch(`/api/product-catalog?oem_id=${encodeURIComponent(selectedOemId)}`);
+      const json = await res.json();
+      setProducts(json?.data?.items || []);
+      setQtyByProduct({});
+      setPreview(null);
+    };
+    loadProducts().catch(console.error);
+  }, [selectedOemId]);
+
+  const selectedItems = useMemo(() => {
+    return Object.entries(qtyByProduct)
+      .filter(([, q]) => (q || 0) > 0)
+      .map(([product_id, quantity]) => {
+        const prod = products.find((p) => p.id === product_id);
+        return {
+          product_id,
+          model_type: prod?.model_type || product_id,
+          quantity,
         };
-        fetchData();
-    }, []);
+      });
+  }, [qtyByProduct, products]);
 
-    const addItem = () => {
-        setItems([...items, { product_id: '', model_type: '', quantity: 1 }]);
-    };
+  const visibleProducts = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return products;
+    return products.filter((p) => {
+      return (
+        p.id.toLowerCase().includes(q) ||
+        p.model_type.toLowerCase().includes(q) ||
+        p.asset_type.toLowerCase().includes(q) ||
+        p.asset_category.toLowerCase().includes(q)
+      );
+    });
+  }, [products, search]);
 
-    const removeItem = (index: number) => {
-        setItems(items.filter((_, i) => i !== index));
-    };
+  const handleQtyChange = (product_id: string, quantity: number) => {
+    setQtyByProduct((prev) => ({ ...prev, [product_id]: quantity }));
+    setPreview(null);
+  };
 
-    const handleItemChange = (index: number, field: string, value: any) => {
-        const newItems = [...items];
-        if (field === 'product_id') {
-            const prod = products.find(p => p.id === value);
-            newItems[index].product_id = value;
-            newItems[index].model_type = prod?.model_type || '';
-        } else {
-            newItems[index].quantity = parseInt(value) || 0;
-        }
-        setItems(newItems);
-    };
+  const generatePreview = async () => {
+    if (!selectedOemId || selectedItems.length === 0) {
+      alert('Select an OEM and at least one item.');
+      return;
+    }
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setLoading(true);
+    setLoading(true);
+    try {
+      const res = await fetch('/api/provisions/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ oem_id: selectedOemId, items: selectedItems }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json?.success) throw new Error(json?.error?.message || 'Failed to generate preview');
 
-        try {
-            const res = await fetch('/api/provisions', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    oem_id: selectedOem,
-                    expected_delivery_date: expectedDate,
-                    products: items,
-                    remarks
-                }),
-            });
+      const p: PreviewResponse = json.data;
+      setPreview(p);
 
-            if (!res.ok) throw new Error('Failed to create provision');
+      // auto-populated routing
+      setEmailToCsv((p.routing.email_to || []).join(', '));
+      setEmailCcCsv((p.routing.email_cc || []).join(', '));
+      setWhatsappToPhone(p.routing.whatsapp_to_phone || '');
 
-            router.push('/provisions');
-        } catch (err) {
-            console.error(err);
-            alert('Error creating provision');
-        } finally {
-            setLoading(false);
-        }
-    };
+      // editable templates
+      setEmailSubject(p.templates.email_subject);
+      setEmailBody(p.templates.email_body);
+      setWhatsappMessage(p.templates.whatsapp_message);
+    } catch (e: any) {
+      console.error(e);
+      alert(e?.message || 'Error generating preview');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    return (
-        <div className="max-w-4xl mx-auto py-8 px-4">
-            <div className="mb-8">
-                <h1 className="text-2xl font-bold text-gray-900">Create New Provision</h1>
-                <p className="text-sm text-gray-500 mt-1">Request new stock from an OEM</p>
-            </div>
+  const placeProcurementRequest = async () => {
+    if (!preview) {
+      alert('Generate preview first.');
+      return;
+    }
 
-            <form onSubmit={handleSubmit} className="space-y-8">
-                {/* Header Info */}
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                            <Label>Select OEM</Label>
-                            <div className="relative">
-                                <Building2 className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
-                                <select
-                                    className="w-full h-10 pl-10 rounded-xl border-gray-200 focus:ring-brand-500 focus:border-brand-500"
-                                    value={selectedOem}
-                                    onChange={(e) => setSelectedOem(e.target.value)}
-                                    required
-                                >
-                                    <option value="">Select an OEM</option>
-                                    {oems.map((oem) => (
-                                        <option key={oem.id} value={oem.id}>{oem.business_entity_name}</option>
-                                    ))}
-                                </select>
-                            </div>
-                        </div>
+    const emailTo = csvToEmails(emailToCsv);
+    const emailCc = csvToEmails(emailCcCsv).filter((x) => !emailTo.includes(x));
 
-                        <div className="space-y-2">
-                            <Label>Expected Delivery Date</Label>
-                            <div className="relative">
-                                <Calendar className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
-                                <Input
-                                    type="date"
-                                    className="pl-10 h-10 rounded-xl border-gray-200"
-                                    value={expectedDate}
-                                    onChange={(e) => setExpectedDate(e.target.value)}
-                                    required
-                                />
-                            </div>
-                        </div>
-                    </div>
+    if (emailTo.length === 0) {
+      alert('Email TO is empty. (OEM Sales Manager email is required)');
+      return;
+    }
 
-                    <div className="mt-6 space-y-2">
-                        <Label>Remarks (Optional)</Label>
-                        <textarea
-                            className="w-full rounded-xl border-gray-200 focus:ring-brand-500 focus:border-brand-500 p-3"
-                            rows={3}
-                            placeholder="Add any specific instructions or context..."
-                            value={remarks}
-                            onChange={(e) => setRemarks(e.target.value)}
-                        />
-                    </div>
-                </div>
+    setLoading(true);
+    try {
+      const res = await fetch('/api/provisions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: preview.provision_id,
+          oem_id: selectedOemId,
+          products: selectedItems,
+          remarks: description,
 
-                {/* Products List */}
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                    <div className="flex justify-between items-center mb-6">
-                        <h3 className="font-bold text-gray-900 flex items-center gap-2">
-                            <Package className="w-5 h-5 text-brand-600" />
-                            Products to Order
-                        </h3>
-                        <Button type="button" variant="outline" size="sm" onClick={addItem}>
-                            <Plus className="w-4 h-4 mr-1" /> Add Product
-                        </Button>
-                    </div>
+          send_to_oem: true,
+          email_to: emailTo,
+          email_cc: emailCc,
+          whatsapp_to_phone: whatsappToPhone,
 
-                    <div className="space-y-4">
-                        {items.map((item, index) => (
-                            <div key={index} className="flex gap-4 items-end p-4 bg-gray-50 rounded-xl animate-in fade-in slide-in-from-left-2">
-                                <div className="flex-1 space-y-2">
-                                    <Label className="text-xs">Product Type</Label>
-                                    <select
-                                        className="w-full h-10 rounded-lg border-gray-200 bg-white"
-                                        value={item.product_id}
-                                        onChange={(e) => handleItemChange(index, 'product_id', e.target.value)}
-                                        required
-                                    >
-                                        <option value="">Select Product Variant</option>
-                                        {products.map((p) => (
-                                            <option key={p.id} value={p.id}>{p.model_type} ({p.asset_type})</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div className="w-32 space-y-2">
-                                    <Label className="text-xs">Quantity</Label>
-                                    <Input
-                                        type="number"
-                                        min="1"
-                                        className="h-10 rounded-lg border-gray-200"
-                                        value={item.quantity}
-                                        onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
-                                        required
-                                    />
-                                </div>
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="text-red-400 hover:text-red-600 hover:bg-red-50"
-                                    onClick={() => removeItem(index)}
-                                >
-                                    <Trash2 className="w-4 h-4" />
-                                </Button>
-                            </div>
-                        ))}
+          email_subject: emailSubject,
+          email_body: emailBody,
+          whatsapp_message: whatsappMessage,
+        }),
+      });
 
-                        {items.length === 0 && (
-                            <div className="text-center py-8 border-2 border-dashed border-gray-100 rounded-xl">
-                                <p className="text-sm text-gray-400">No products added yet.</p>
-                                <Button type="button" variant="outline" size="sm" onClick={addItem} className="text-brand-600 font-bold">
-                                    Tap to add product
-                                </Button>
-                            </div>
-                        )}
-                    </div>
-                </div>
+      const json = await res.json();
+      if (!res.ok || !json?.success) throw new Error(json?.error?.message || 'Failed to place procurement request');
 
-                <div className="flex justify-end pt-4">
-                    <Button
-                        type="submit"
-                        disabled={loading || items.length === 0}
-                        variant="primary"
-                        className="min-w-[200px] h-12 rounded-xl text-lg font-bold shadow-lg"
-                    >
-                        {loading ? 'Creating...' : 'Submit Provision Request'}
-                        {!loading && <CheckCircle className="ml-2 w-5 h-5" />}
-                    </Button>
-                </div>
-            </form>
+      const status = json?.data?.status;
+
+      if (status !== 'req_sent') {
+        alert('Provision created, but n8n did not confirm BOTH email & WhatsApp delivery. Status kept as Pending.');
+      } else {
+        alert('Success! Procurement request sent (Email + WhatsApp).');
+      }
+
+      router.push('/provisions');
+    } catch (e: any) {
+      console.error(e);
+      alert(e?.message || 'Error placing procurement request');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="max-w-6xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-gray-900">Create Provision</h1>
+        <p className="text-sm text-gray-500 mt-1">
+          OEM selection → product selection → auto TO/CC/WhatsApp from DB → send via n8n
+        </p>
+      </div>
+
+      {/* Step 1: OEM */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+        <h2 className="text-base font-bold text-gray-900">1) Select OEM</h2>
+
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <Label>OEM</Label>
+            <select
+              className="w-full h-10 rounded-xl border-gray-200 focus:ring-brand-500 focus:border-brand-500"
+              value={selectedOemId}
+              onChange={(e) => setSelectedOemId(e.target.value)}
+            >
+              <option value="">Select an OEM</option>
+              {oems.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.business_entity_name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Description</Label>
+            <Input
+              placeholder="Optional (e.g., urgent replenishment for Feb sales)"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+          </div>
         </div>
-    );
+      </div>
+
+      {/* Step 2: Items */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mt-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-base font-bold text-gray-900">2) Pick items from Product Catalog</h2>
+            <p className="text-sm text-gray-500 mt-1">Set quantities with slider (0 = excluded)</p>
+          </div>
+          <div className="w-full md:w-80">
+            <Input
+              placeholder="Search products..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              disabled={!selectedOemId}
+            />
+          </div>
+        </div>
+
+        {!selectedOemId && <p className="mt-6 text-sm text-gray-500">Select an OEM to view its catalog.</p>}
+
+        {selectedOemId && (
+          <div className="mt-6 space-y-4">
+            {visibleProducts.map((p) => {
+              const q = qtyByProduct[p.id] || 0;
+              return (
+                <div key={p.id} className="p-4 rounded-xl border border-gray-200">
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">{p.model_type}</p>
+                      <p className="text-xs text-gray-500">
+                        {p.id} • {p.asset_category} • {p.asset_type}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="w-48">
+                        <input
+                          type="range"
+                          min={0}
+                          max={50}
+                          value={q}
+                          onChange={(e) => handleQtyChange(p.id, parseInt(e.target.value || '0', 10))}
+                          className="w-full"
+                        />
+                      </div>
+                      <div className="w-16 text-right">
+                        <span className="text-sm font-bold text-gray-900">{q}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            {products.length === 0 && (
+              <div className="p-10 rounded-xl border border-dashed border-gray-300 text-center">
+                <p className="text-sm text-gray-500">No products found for this OEM.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="mt-6 flex items-center justify-between gap-4">
+          <p className="text-sm text-gray-600">
+            Selected items: <span className="font-semibold">{selectedItems.length}</span>
+          </p>
+          <Button
+            type="button"
+            variant="primary"
+            onClick={generatePreview}
+            disabled={loading || !selectedOemId || selectedItems.length === 0}
+          >
+            {loading ? 'Generating...' : 'Generate Preview (Auto TO/CC/WhatsApp)'}
+          </Button>
+        </div>
+      </div>
+
+      {/* Step 3 */}
+      {preview && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mt-6">
+          <h2 className="text-base font-bold text-gray-900">3) Send procurement request</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            Provision ID: <span className="font-semibold text-gray-800">{preview.provision_id}</span>
+          </p>
+
+          <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label>Email TO (OEM Sales Manager)</Label>
+              <Input value={emailToCsv} onChange={(e) => setEmailToCsv(e.target.value)} />
+              <p className="text-xs text-gray-400">Comma-separated emails</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Email CC (OEM Sales Head + iTarang SOM + iTarang Sales Head)</Label>
+              <Input value={emailCcCsv} onChange={(e) => setEmailCcCsv(e.target.value)} />
+              <p className="text-xs text-gray-400">Comma-separated emails</p>
+            </div>
+          </div>
+
+          <div className="mt-6 space-y-2">
+            <Label>WhatsApp To (OEM Sales Manager phone)</Label>
+            <Input value={whatsappToPhone} onChange={(e) => setWhatsappToPhone(e.target.value)} />
+          </div>
+
+          <div className="mt-6 space-y-2">
+            <Label>Email Subject (editable)</Label>
+            <Input value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} />
+          </div>
+
+          <div className="mt-4 space-y-2">
+            <Label>Email Body (editable)</Label>
+            <textarea
+              className="w-full rounded-xl border border-gray-200 p-3 text-sm focus:ring-brand-500 focus:border-brand-500"
+              rows={8}
+              value={emailBody}
+              onChange={(e) => setEmailBody(e.target.value)}
+            />
+          </div>
+
+          <div className="mt-4 space-y-2">
+            <Label>WhatsApp Message (editable)</Label>
+            <textarea
+              className="w-full rounded-xl border border-gray-200 p-3 text-sm focus:ring-brand-500 focus:border-brand-500"
+              rows={5}
+              value={whatsappMessage}
+              onChange={(e) => setWhatsappMessage(e.target.value)}
+            />
+          </div>
+
+          <div className="mt-6 flex justify-end">
+            <Button type="button" variant="primary" onClick={placeProcurementRequest} disabled={loading}>
+              {loading ? 'Sending...' : 'Place Procurement Request to OEM'}
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }

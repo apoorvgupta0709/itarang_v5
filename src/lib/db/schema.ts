@@ -420,6 +420,147 @@ export const orders = pgTable('orders', {
     };
 });
 
+// --- DOCUMENT MANAGEMENT (Phase 1) ---
+
+export const documents = pgTable('documents', {
+    id: varchar('id', { length: 255 }).primaryKey(), // DOC-YYYYMMDD-SEQ
+    document_type: varchar('document_type', { length: 50 }).notNull(), // pi, invoice, challan, warranty, manual, other
+    source: varchar('source', { length: 50 }).notNull(), // oem_email, whatsapp, upload
+    url: text('url').notNull(),
+
+    uploaded_by: uuid('uploaded_by').references(() => users.id).notNull(),
+    uploaded_at: timestamp('uploaded_at', { withTimezone: true }).defaultNow().notNull(),
+
+    version: integer('version').default(1).notNull(),
+    is_active: boolean('is_active').default(true).notNull(),
+
+    // Polymorphic linkage
+    entity_type: varchar('entity_type', { length: 50 }).notNull(), // provision, order, pi, invoice, grn, inventory, etc.
+    entity_id: varchar('entity_id', { length: 255 }).notNull(),
+}, (table) => {
+    return {
+        docsEntityIdx: index('documents_entity_idx').on(table.entity_type, table.entity_id),
+        docsTypeIdx: index('documents_type_idx').on(table.document_type),
+    };
+});
+
+// --- PROCUREMENT: PI / INVOICE VERSIONING (Phase 1) ---
+// BRD rule: Approved PI/Invoice are immutable; revisions create a NEW version.
+
+export const orderPiVersions = pgTable('order_pi_versions', {
+    id: varchar('id', { length: 255 }).primaryKey(), // PI-YYYYMMDD-SEQ
+    order_id: varchar('order_id', { length: 255 }).references(() => orders.id).notNull(),
+    document_id: varchar('document_id', { length: 255 }).references(() => documents.id).notNull(),
+
+    pi_number: text('pi_number'),
+    pi_date: timestamp('pi_date', { withTimezone: true }),
+    amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
+
+    version: integer('version').notNull(),
+    is_active: boolean('is_active').default(true).notNull(),
+
+    status: varchar('status', { length: 20 }).default('uploaded').notNull(), // uploaded, approved, rejected, superseded
+    rejection_reason: text('rejection_reason'),
+
+    created_by: uuid('created_by').references(() => users.id).notNull(),
+    created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    approved_by: uuid('approved_by').references(() => users.id),
+    approved_at: timestamp('approved_at', { withTimezone: true }),
+}, (table) => {
+    return {
+        piOrderIdx: index('order_pi_versions_order_idx').on(table.order_id),
+        piActiveIdx: index('order_pi_versions_active_idx').on(table.order_id, table.is_active),
+    };
+});
+
+export const orderInvoiceVersions = pgTable('order_invoice_versions', {
+    id: varchar('id', { length: 255 }).primaryKey(), // INVV-YYYYMMDD-SEQ
+    order_id: varchar('order_id', { length: 255 }).references(() => orders.id).notNull(),
+    document_id: varchar('document_id', { length: 255 }).references(() => documents.id).notNull(),
+
+    invoice_number: text('invoice_number'),
+    invoice_date: timestamp('invoice_date', { withTimezone: true }),
+    amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
+
+    version: integer('version').notNull(),
+    is_active: boolean('is_active').default(true).notNull(),
+
+    status: varchar('status', { length: 20 }).default('uploaded').notNull(), // uploaded, approved, rejected, superseded
+    rejection_reason: text('rejection_reason'),
+
+    created_by: uuid('created_by').references(() => users.id).notNull(),
+    created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    approved_by: uuid('approved_by').references(() => users.id),
+    approved_at: timestamp('approved_at', { withTimezone: true }),
+}, (table) => {
+    return {
+        invOrderIdx: index('order_invoice_versions_order_idx').on(table.order_id),
+        invActiveIdx: index('order_invoice_versions_active_idx').on(table.order_id, table.is_active),
+    };
+});
+
+// --- PROCUREMENT: PAYMENT / CREDIT / CHALLAN (Phase 1) ---
+// BRD rule: multiple payments, multiple credits; challan is a document linked to the order.
+
+export const orderPayments = pgTable('order_payments', {
+    id: varchar('id', { length: 255 }).primaryKey(), // PAY-YYYYMMDD-SEQ
+    order_id: varchar('order_id', { length: 255 }).references(() => orders.id).notNull(),
+    invoice_version_id: varchar('invoice_version_id', { length: 255 }).references(() => orderInvoiceVersions.id),
+
+    amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
+    mode: varchar('mode', { length: 50 }).notNull(), // cash, bank_transfer, cheque, online
+    utr: text('utr').notNull(),
+    paid_at: timestamp('paid_at', { withTimezone: true }).notNull(),
+
+    created_by: uuid('created_by').references(() => users.id).notNull(),
+    created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => {
+    return {
+        payOrderIdx: index('order_payments_order_idx').on(table.order_id),
+    };
+});
+
+export const orderCredits = pgTable('order_credits', {
+    id: varchar('id', { length: 255 }).primaryKey(), // CRED-YYYYMMDD-SEQ
+    order_id: varchar('order_id', { length: 255 }).references(() => orders.id).notNull(),
+    invoice_version_id: varchar('invoice_version_id', { length: 255 }).references(() => orderInvoiceVersions.id),
+
+    amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
+    status: varchar('status', { length: 20 }).default('active').notNull(), // active, settled
+    notes: text('notes'),
+
+    approved_by: uuid('approved_by').references(() => users.id),
+    approved_at: timestamp('approved_at', { withTimezone: true }),
+
+    created_by: uuid('created_by').references(() => users.id).notNull(),
+    created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => {
+    return {
+        credOrderIdx: index('order_credits_order_idx').on(table.order_id),
+        credStatusIdx: index('order_credits_status_idx').on(table.status),
+    };
+});
+
+export const orderChallans = pgTable('order_challans', {
+    id: varchar('id', { length: 255 }).primaryKey(), // CHLN-YYYYMMDD-SEQ
+    order_id: varchar('order_id', { length: 255 }).references(() => orders.id).notNull(),
+    document_id: varchar('document_id', { length: 255 }).references(() => documents.id).notNull(),
+
+    challan_number: text('challan_number'),
+    challan_date: timestamp('challan_date', { withTimezone: true }),
+    ewaybill_number: text('ewaybill_number'),
+    ewaybill_date: timestamp('ewaybill_date', { withTimezone: true }),
+
+    status: varchar('status', { length: 20 }).default('uploaded').notNull(), // uploaded, superseded
+
+    uploaded_by: uuid('uploaded_by').references(() => users.id).notNull(),
+    uploaded_at: timestamp('uploaded_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => {
+    return {
+        challanOrderIdx: index('order_challans_order_idx').on(table.order_id),
+    };
+});
+
 export const bolnaCalls = pgTable('bolna_calls', {
     id: varchar('id', { length: 255 }).primaryKey(),
     bolna_call_id: varchar('bolna_call_id', { length: 255 }).notNull().unique(),

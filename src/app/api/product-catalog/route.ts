@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
-import { productCatalog } from "@/lib/db/schema";
-import { desc, eq, and, or, ilike } from "drizzle-orm";
+import { inventory, productCatalog } from "@/lib/db/schema";
+import { desc, eq, and, or, ilike, inArray } from "drizzle-orm";
 import { requireAuth } from "@/lib/auth-utils";
 import { generateId, successResponse, withErrorHandler } from "@/lib/api-utils";
 import { z } from "zod";
@@ -21,6 +21,7 @@ export const GET = withErrorHandler(async (req: Request): Promise<Response> => {
     const url = new URL(req.url);
     const status = (url.searchParams.get("status") || "active").toLowerCase(); // active | disabled | all
     const q = (url.searchParams.get("q") || "").trim();
+    const oemId = (url.searchParams.get("oem_id") || "").trim();
 
     const filters: any[] = [];
 
@@ -39,6 +40,22 @@ export const GET = withErrorHandler(async (req: Request): Promise<Response> => {
                 ilike(productCatalog.model_type, like)
             )
         );
+    }
+
+    // Optional: OEM-scoped catalog.
+    // We interpret "catalog for an OEM" as products the OEM has ever uploaded inventory for.
+    if (oemId) {
+        const invRows = await db
+            .select({ product_id: inventory.product_id })
+            .from(inventory)
+            .where(eq(inventory.oem_id, oemId));
+
+        const productIds = Array.from(new Set(invRows.map((r) => r.product_id)));
+        if (productIds.length === 0) {
+            return successResponse({ items: [] });
+        }
+
+        filters.push(inArray(productCatalog.id, productIds));
     }
 
     const whereClause = filters.length ? and(...filters) : undefined;

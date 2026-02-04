@@ -42,6 +42,22 @@ async function seedUsers() {
             phone: '+91 98765 00004',
             is_active: true,
         },
+        {
+            id: uuidv4(),
+            email: 'sales.exec@itarang.com',
+            name: 'Vikram Mehta',
+            role: 'sales_executive',
+            phone: '+91 98765 00005',
+            is_active: true,
+        },
+        {
+            id: uuidv4(),
+            email: 'inventory@itarang.com',
+            name: 'Suresh Raina',
+            role: 'inventory_manager',
+            phone: '+91 98765 00006',
+            is_active: true,
+        },
     ];
 
     try {

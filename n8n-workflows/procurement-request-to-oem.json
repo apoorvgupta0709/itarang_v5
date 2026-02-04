@@ -1,0 +1,325 @@
+{
+  "name": "procurement-request-to-oem",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "procurement-request-to-oem",
+        "httpMethod": "POST",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [240, 220],
+      "id": "Webhook",
+      "name": "Webhook"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1",
+              "name": "provision_id",
+              "value": "={{$json.body.provision_id}}",
+              "type": "string"
+            },
+            {
+              "id": "a2",
+              "name": "oem_name",
+              "value": "={{$json.body.oem_name}}",
+              "type": "string"
+            },
+            {
+              "id": "a3",
+              "name": "oem_email",
+              "value": "={{$json.body.oem_email}}",
+              "type": "string"
+            },
+            {
+              "id": "a4",
+              "name": "oem_phone",
+              "value": "={{$json.body.oem_phone}}",
+              "type": "string"
+            },
+            {
+              "id": "a5",
+              "name": "email_subject",
+              "value": "={{$json.body.email_subject}}",
+              "type": "string"
+            },
+            {
+              "id": "a6",
+              "name": "email_body",
+              "value": "={{$json.body.email_body}}",
+              "type": "string"
+            },
+            {
+              "id": "a7",
+              "name": "whatsapp_message",
+              "value": "={{$json.body.whatsapp_message}}",
+              "type": "string"
+            },
+            {
+              "id": "a8",
+              "name": "products",
+              "value": "={{$json.body.products}}",
+              "type": "object"
+            },
+            {
+              "id": "a9",
+              "name": "requested_by",
+              "value": "={{$json.body.requested_by}}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [460, 220],
+      "id": "Normalize",
+      "name": "Normalize Payload"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.oem_email}}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 160],
+      "id": "IfEmail",
+      "name": "If OEM Email Present"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.oem_phone}}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 300],
+      "id": "IfWhatsApp",
+      "name": "If OEM Phone Present"
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{$env.SENDER_EMAIL || 'no-reply@itarang.in'}}",
+        "toEmail": "={{$json.oem_email}}",
+        "subject": "={{$json.email_subject}}",
+        "text": "={{$json.email_body}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [920, 160],
+      "id": "SendEmail",
+      "name": "Send Email",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.WHATSAPP_PROVIDER_URL}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{$env.WHATSAPP_PROVIDER_AUTH}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"to\": $json.oem_phone, \"message\": $json.whatsapp_message } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [920, 300],
+      "id": "SendWhatsApp",
+      "name": "Send WhatsApp (HTTP)",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "mode": "mergeByPosition"
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [1160, 220],
+      "id": "MergeResults",
+      "name": "Merge Results"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "flag1",
+              "name": "mail_sent",
+              "value": "={{ $('Send Email').item?.json && !$('Send Email').item.json.error }}",
+              "type": "boolean"
+            },
+            {
+              "id": "flag2",
+              "name": "whatsapp_sent",
+              "value": "={{ $('Send WhatsApp (HTTP)').item?.json && !$('Send WhatsApp (HTTP)').item.json.error }}",
+              "type": "boolean"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1360, 220],
+      "id": "Flags",
+      "name": "Build Delivery Flags"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{$json}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [1560, 220],
+      "id": "Respond",
+      "name": "Respond to Webhook"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Payload": {
+      "main": [
+        [
+          {
+            "node": "If OEM Email Present",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "If OEM Phone Present",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If OEM Email Present": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If OEM Phone Present": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp (HTTP)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Send Email": {
+      "main": [
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send WhatsApp (HTTP)": {
+      "main": [
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Results": {
+      "main": [
+        [
+          {
+            "node": "Build Delivery Flags",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Delivery Flags": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "pinData": {},
+  "tags": []
+}

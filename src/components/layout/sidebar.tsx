@@ -13,6 +13,7 @@ const roleNavigation: Record<string, any[]> = {
             section: 'BUSINESS', items: [
                 { id: 'product-catalog', label: 'Product Catalog', icon: Package, href: '/product-catalog' },
                 { id: 'oems', label: 'OEMs', icon: Landmark, href: '/oem-onboarding' },
+                { id: 'procurement-orders', label: 'Procurement Orders', icon: ClipboardCheck, href: '/provisions' },
                 { id: 'inventory-reports', label: 'Inventory', icon: PieChart, href: '/inventory' },
                 { id: 'leads', label: 'Leads', icon: Users, href: '/leads' },
                 { id: 'deals', label: 'Deals', icon: FileCheck, href: '/deals' },
@@ -44,6 +45,7 @@ const roleNavigation: Record<string, any[]> = {
         {
             section: 'INVENTORY', items: [
                 { id: 'product-catalog', label: 'Product Catalog', icon: Package, href: '/product-catalog' },
+                { id: 'procurement-orders', label: 'Procurement Orders', icon: ClipboardCheck, href: '/provisions' },
                 { id: 'inventory-reports', label: 'Inventory', icon: PieChart, href: '/inventory' },
                 { id: 'bulk-upload', label: 'Bulk Upload', icon: ShoppingCart, href: '/inventory/bulk-upload' },
             ]
@@ -81,6 +83,7 @@ const roleNavigation: Record<string, any[]> = {
         {
             section: 'OPERATIONS', items: [
                 { id: 'oem-onboarding', label: 'OEM Onboarding', icon: Building, href: '/sales-order-manager/oem-onboarding' },
+                { id: 'procurement-orders', label: 'Procurement Orders', icon: ClipboardCheck, href: '/provisions' },
                 { id: 'provisions', label: 'Provisions', icon: FileText, href: '/sales-order-manager/provisions' },
                 { id: 'orders', label: 'Orders', icon: ShoppingCart, href: '/sales-order-manager/orders' },
                 { id: 'pi-invoices', label: 'PI & Invoices', icon: Receipt, href: '/sales-order-manager/pi-invoices' },

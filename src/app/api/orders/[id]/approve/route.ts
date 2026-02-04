@@ -12,31 +12,50 @@ const approvalSchema = z.object({
     comments: z.string().optional(),
 });
 
+type ApprovalStage = 'pi' | 'invoice';
+
+function getStage(orderStatus: string): { stage: ApprovalStage; level: number } {
+    // PI approvals (3 levels)
+    if (orderStatus === 'pi_approval_pending') return { stage: 'pi', level: 1 };
+    if (orderStatus === 'pi_approval_l2_pending') return { stage: 'pi', level: 2 };
+    if (orderStatus === 'pi_approval_l3_pending') return { stage: 'pi', level: 3 };
+
+    // Invoice approval (1 level)
+    if (orderStatus === 'invoice_approval_pending') return { stage: 'invoice', level: 1 };
+
+    throw new Error('Order is not in an approval state');
+}
+
 export const POST = withErrorHandler(async (req: Request, { params }: { params: Promise<{ id: string }> }) => {
     const { id: orderId } = await params;
     const body = await req.json();
     const { decision, rejection_reason, comments } = approvalSchema.parse(body);
 
-    // 1. Get Order
+    if (decision === 'rejected' && !rejection_reason) {
+        throw new Error('Rejection reason is required');
+    }
+
+    // 1) Get Order
     const [order] = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
     if (!order) throw new Error('Order not found');
 
-    // 2. Determine current level and required role
-    let currentLevel = 0;
-    if (order.order_status === 'pi_approval_pending') currentLevel = 1;
-    else if (order.order_status === 'pi_approval_l2_pending') currentLevel = 2;
-    else if (order.order_status === 'pi_approval_l3_pending') currentLevel = 3;
-    else throw new Error('Order is not in an approval state');
+    const { stage, level } = getStage(order.order_status);
 
-    const roleMap: Record<number, string[]> = {
-        1: ['sales_head', 'ceo', 'business_head'],
-        2: ['business_head', 'ceo'],
-        3: ['finance_controller', 'ceo']
+    // 2) Determine required role
+    const roleMap: Record<ApprovalStage, Record<number, string[]>> = {
+        pi: {
+            1: ['sales_head', 'ceo', 'business_head'],
+            2: ['business_head', 'ceo'],
+            3: ['finance_controller', 'ceo'],
+        },
+        invoice: {
+            1: ['sales_head', 'ceo', 'business_head'],
+        },
     };
 
-    const user = await requireRole(roleMap[currentLevel]);
+    const user = await requireRole(roleMap[stage][level]);
 
-    // 3. Process Decision
+    // 3) Process Decision
     const result = await db.transaction(async (tx) => {
         const approvalId = await generateId('APP', approvals);
 
@@ -45,7 +64,7 @@ export const POST = withErrorHandler(async (req: Request, { params }: { params: 
             id: approvalId,
             entity_type: 'order',
             entity_id: orderId,
-            level: currentLevel,
+            level,
             approver_role: user.role,
             status: decision,
             approver_id: user.id,
@@ -54,14 +73,63 @@ export const POST = withErrorHandler(async (req: Request, { params }: { params: 
             comments,
         });
 
-        // Update Order Status
-        let nextStatus = '';
-        if (decision === 'rejected') {
-            nextStatus = 'pi_rejected';
-        } else {
-            if (currentLevel === 1) nextStatus = 'pi_approval_l2_pending';
-            else if (currentLevel === 2) nextStatus = 'pi_approval_l3_pending';
-            else if (currentLevel === 3) nextStatus = 'pi_approved';
+        // Compute next status
+        let nextStatus = order.order_status;
+
+        if (stage === 'pi') {
+            if (decision === 'rejected') {
+                nextStatus = 'pi_rejected';
+            } else {
+                if (level === 1) nextStatus = 'pi_approval_l2_pending';
+                else if (level === 2) nextStatus = 'pi_approval_l3_pending';
+                else if (level === 3) nextStatus = 'pi_approved';
+            }
+
+            // SLA: when PI is approved (final level), start "pending_for_invoice"
+            // (Your upload-invoice route completes this step)
+            if (nextStatus === 'pi_approved') {
+                const deadline = new Date();
+                deadline.setHours(deadline.getHours() + 24); // 24h to upload invoice
+
+                await tx.insert(slas).values({
+                    id: await generateId('SLA', slas),
+                    entity_type: 'order',
+                    entity_id: orderId,
+                    workflow_step: 'pending_for_invoice',
+                    status: 'active',
+                    sla_deadline: deadline,
+                    assigned_to: user.id, // Proxy (can map to actual owner later)
+                });
+            }
+        }
+
+        if (stage === 'invoice') {
+            nextStatus = decision === 'rejected' ? 'invoice_rejected' : 'invoice_approved';
+
+            // Complete invoice approval SLA (created on invoice upload)
+            await tx.update(slas)
+                .set({ status: 'completed', completed_at: new Date() })
+                .where(and(
+                    eq(slas.entity_id, orderId),
+                    eq(slas.workflow_step, 'invoice_approval'),
+                    eq(slas.status, 'active')
+                ));
+
+            // SLA: when invoice approved, start payment SLA (existing workflow step name)
+            if (nextStatus === 'invoice_approved') {
+                const deadline = new Date();
+                deadline.setHours(deadline.getHours() + 48); // 48h for payment
+
+                await tx.insert(slas).values({
+                    id: await generateId('SLA', slas),
+                    entity_type: 'order',
+                    entity_id: orderId,
+                    workflow_step: 'procurement_payment',
+                    status: 'active',
+                    sla_deadline: deadline,
+                    assigned_to: user.id, // Proxy for finance
+                });
+            }
         }
 
         const [updatedOrder] = await tx.update(orders)
@@ -69,42 +137,27 @@ export const POST = withErrorHandler(async (req: Request, { params }: { params: 
             .where(eq(orders.id, orderId))
             .returning();
 
-        // 3.5 SLA Management (SOP 11.1)
-        if (nextStatus === 'pi_approved') {
-            const deadline = new Date();
-            deadline.setHours(deadline.getHours() + 48); // 48h for payment
-
-            await tx.insert(slas).values({
-                id: await generateId('SLA', slas),
-                entity_type: 'order',
-                entity_id: orderId,
-                workflow_step: 'procurement_payment',
-                status: 'active',
-                sla_deadline: deadline,
-                assigned_to: user.id, // Proxy for finance
-            });
-        }
-
         // Audit Log
         await tx.insert(auditLogs).values({
             id: await generateId('AUDIT', auditLogs),
             entity_type: 'order',
             entity_id: orderId,
             action: decision === 'approved' ? 'approve' : 'reject',
-            changes: { level: currentLevel, status: nextStatus },
+            changes: { stage, level, status: nextStatus },
             performed_by: user.id,
         });
 
         return updatedOrder;
     });
 
-    // 4. Trigger n8n
+    // 4) Trigger n8n
     try {
-        await triggerN8nWebhook('pi-approval-workflow', {
+        await triggerN8nWebhook(stage === 'pi' ? 'pi-approval-workflow' : 'invoice-approval-workflow', {
             order_id: orderId,
+            stage,
             decision,
             next_status: result.order_status,
-            approver_name: user.name
+            approver_name: user.name,
         });
     } catch (err) {
         console.error('Webhook failed:', err);

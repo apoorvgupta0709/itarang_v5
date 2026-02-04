@@ -38,3 +38,22 @@ export type NewPDIRecord = InferInsertModel<typeof schema.pdiRecords>;
 export type Provision = InferSelectModel<typeof schema.provisions>;
 export type Order = InferSelectModel<typeof schema.orders>;
 export type Account = InferSelectModel<typeof schema.accounts>;
+
+// Documents + Procurement (Phase 1)
+export type Document = InferSelectModel<typeof schema.documents>;
+export type NewDocument = InferInsertModel<typeof schema.documents>;
+
+export type OrderPIVersion = InferSelectModel<typeof schema.orderPiVersions>;
+export type NewOrderPIVersion = InferInsertModel<typeof schema.orderPiVersions>;
+
+export type OrderInvoiceVersion = InferSelectModel<typeof schema.orderInvoiceVersions>;
+export type NewOrderInvoiceVersion = InferInsertModel<typeof schema.orderInvoiceVersions>;
+
+export type OrderPayment = InferSelectModel<typeof schema.orderPayments>;
+export type NewOrderPayment = InferInsertModel<typeof schema.orderPayments>;
+
+export type OrderCredit = InferSelectModel<typeof schema.orderCredits>;
+export type NewOrderCredit = InferInsertModel<typeof schema.orderCredits>;
+
+export type OrderChallan = InferSelectModel<typeof schema.orderChallans>;
+export type NewOrderChallan = InferInsertModel<typeof schema.orderChallans>;
