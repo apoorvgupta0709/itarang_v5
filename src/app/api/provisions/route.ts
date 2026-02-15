@@ -7,75 +7,52 @@ import { successResponse, withErrorHandler, generateId } from '@/lib/api-utils';
 import { triggerN8nWebhook, triggerN8nWebhookWithResponse } from '@/lib/n8n';
 
 const provisionSchema = z.object({
-  id: z.string().optional(),
   oem_id: z.string().min(1),
-  expected_delivery_date: z.string().optional(),
-  products: z.array(
-    z.object({
-      product_id: z.string().min(1),
-      model_type: z.string().optional().default(''),
-      quantity: z.coerce.number().int().positive(),
-    })
-  ).min(1),
+  expected_delivery_date: z.string().transform(v => new Date(v)),
+  products: z.array(z.object({
+    product_id: z.string().min(1),
+    model_type: z.string(),
+    quantity: z.number().positive(),
+  })).min(1),
   remarks: z.string().optional(),
 
-  // new routing fields
-  send_to_oem: z.boolean().optional().default(false),
-  email_to: z.array(z.string().email()).optional(),
-  email_cc: z.array(z.string().email()).optional(),
-  whatsapp_to_phone: z.string().optional(),
-
-  // legacy (optional)
-  oem_email: z.string().email().optional(),
-  oem_phone: z.string().optional(),
-
-  email_subject: z.string().optional(),
-  email_body: z.string().optional(),
-  whatsapp_message: z.string().optional(),
+  // ✅ NEW (optional): if frontend sends email/whatsapp preview objects, we send to n8n now
+  send_to_oem: z.boolean().optional(),
+  email: z.object({
+    to: z.array(z.string().email()).min(1),
+    cc: z.array(z.string().email()).optional().default([]),
+    subject: z.string().min(1),
+    body: z.string().min(1),
+  }).optional(),
+  whatsapp: z.object({
+    to_phone: z.string().min(1),
+    message: z.string().min(1),
+  }).optional(),
 });
 
-function uniq(list: string[]) {
-  return Array.from(new Set(list.map((x) => (x || '').trim().toLowerCase()).filter(Boolean)));
-}
-
 export const POST = withErrorHandler(async (req: Request) => {
-  const user = await requireRole(['inventory_manager', 'ceo', 'business_head', 'sales_order_manager', 'sales_head']);
-  const validated = provisionSchema.parse(await req.json());
+  const user = await requireRole(['inventory_manager', 'ceo', 'business_head']);
+  const body = await req.json();
+  const validated = provisionSchema.parse(body);
 
+  // Get OEM name
   const [oem] = await db.select().from(oems).where(eq(oems.id, validated.oem_id)).limit(1);
   if (!oem) throw new Error('OEM not found');
 
-  const provisionId = validated.id || (await generateId('PROV', provisions));
+  const provisionId = await generateId('PROV', provisions);
 
-  const expectedDelivery = validated.expected_delivery_date
-    ? new Date(validated.expected_delivery_date)
-    : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  const [newProvision] = await db.insert(provisions).values({
+    id: provisionId,
+    oem_id: validated.oem_id,
+    oem_name: oem.business_entity_name,
+    products: validated.products as any,
+    expected_delivery_date: validated.expected_delivery_date,
+    remarks: validated.remarks,
+    status: 'pending',
+    created_by: user.id,
+  }).returning();
 
-  // normalize routing fields
-  const emailTo = uniq([
-    ...(validated.email_to || []),
-    ...(validated.oem_email ? [validated.oem_email] : []),
-  ]);
-
-  const emailCc = uniq(validated.email_cc || []).filter((e) => !emailTo.includes(e));
-
-  const whatsappToPhone = (validated.whatsapp_to_phone || validated.oem_phone || '').trim();
-
-  const [newProvision] = await db
-    .insert(provisions)
-    .values({
-      id: provisionId,
-      oem_id: validated.oem_id,
-      oem_name: oem.business_entity_name,
-      products: validated.products as any,
-      expected_delivery_date: expectedDelivery,
-      remarks: validated.remarks,
-      status: validated.send_to_oem ? 'req_sent' : 'pending',
-      created_by: user.id,
-    })
-    .returning();
-
-  // existing event (non-blocking)
+  // Always fire the basic webhook (optional / existing)
   try {
     await triggerN8nWebhook('provision-created', {
       provision_id: provisionId,
@@ -84,64 +61,50 @@ export const POST = withErrorHandler(async (req: Request) => {
       created_by_name: user.name,
     });
   } catch (err) {
-    console.error('Webhook failed (provision-created):', err);
+    console.error('Webhook failed:', err);
   }
 
-  // send request (mail+whatsapp) via n8n with explicit confirmation
-  if (validated.send_to_oem) {
-    const resp = await triggerN8nWebhookWithResponse('procurement-request-to-oem', {
+  // ✅ If email preview is provided + send_to_oem = true, send to your n8n workflow now
+  if (validated.send_to_oem && validated.email) {
+    const n8nResp = await triggerN8nWebhookWithResponse('procurement-request-to-oem', {
       provision_id: provisionId,
-      oem_id: oem.id,
+      oem_id: validated.oem_id,
       oem_name: oem.business_entity_name,
-
-      email: {
-        to: emailTo,
-        cc: emailCc,
-        subject: validated.email_subject,
-        body: validated.email_body,
-      },
-      whatsapp: {
-        to_phone: whatsappToPhone,
-        message: validated.whatsapp_message,
-      },
-
+      email: validated.email,
+      whatsapp: validated.whatsapp, // optional
       products: validated.products,
-      requested_by: { id: user.id, name: user.name, email: user.email },
+      requested_by: {
+        id: user.id,
+        name: user.name,
+        email: (user as any).email,
+      },
     });
 
-    const mailSent = !!(resp.body as any)?.mail_sent;
-    const whatsappSent = !!(resp.body as any)?.whatsapp_sent;
+    const mailSent = !!(n8nResp.body as any)?.mail_sent;
+    // WhatsApp optional => ignore whatsapp_sent for status
 
-    if (!resp.ok || !mailSent || !whatsappSent) {
-      await db
-        .update(provisions)
-        .set({ status: 'pending', updated_at: new Date() })
-        .where(eq(provisions.id, provisionId));
+    if (n8nResp.ok && mailSent) {
+      const [updated] = await db.update(provisions)
+        .set({ status: 'email_sent', updated_at: new Date() })
+        .where(eq(provisions.id, provisionId))
+        .returning();
 
-      return successResponse(
-        {
-          ...newProvision,
-          status: 'pending',
-          n8n: resp,
-        },
-        201
-      );
+      return successResponse({ ...updated, n8n: n8nResp.body }, 201);
     }
+
+    // If mail not sent, keep pending but return n8n response for debugging
+    return successResponse({ ...newProvision, status: 'pending', n8n: n8nResp.body }, 201);
   }
 
   return successResponse(newProvision, 201);
 });
 
 export const GET = withErrorHandler(async () => {
-  await requireRole([
-    'inventory_manager',
-    'ceo',
-    'business_head',
-    'finance_controller',
-    'sales_head',
-    'sales_order_manager',
-  ]);
+  await requireRole(['inventory_manager', 'ceo', 'business_head', 'finance_controller', 'sales_head']);
 
-  const results = await db.select().from(provisions).orderBy(desc(provisions.created_at));
+  const results = await db.select()
+    .from(provisions)
+    .orderBy(desc(provisions.created_at));
+
   return successResponse(results);
 });

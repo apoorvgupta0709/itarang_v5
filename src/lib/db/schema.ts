@@ -695,3 +695,12 @@ export const accountsRelations = relations(accounts, ({ many }) => ({
 export const bolnaCallsRelations = relations(bolnaCalls, ({ one }) => ({
     lead: one(leads, { fields: [bolnaCalls.lead_id], references: [leads.id] }),
 }));
+
+export const intellicarPulls = pgTable('intellicar_pulls', {
+    id: varchar('id', { length: 255 }).primaryKey(), // e.g. INTC-YYYYMMDD-001
+    endpoint: text('endpoint').notNull(),            // e.g. /api/xxx/vehicledata
+    status: varchar('status', { length: 20 }).notNull(), // success | failed
+    pulled_at: timestamp('pulled_at', { withTimezone: true }).defaultNow().notNull(),
+    payload: jsonb('payload'),                       // raw response
+    error: text('error'),                            // error message if failed
+});
