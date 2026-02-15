@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, integer, boolean, varchar, decimal, jsonb, uuid, index } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, integer, boolean, varchar, decimal, jsonb, uuid, index, bigint, serial } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 // --- FOUNDATION ---
@@ -704,3 +704,135 @@ export const intellicarPulls = pgTable('intellicar_pulls', {
     payload: jsonb('payload'),                       // raw response
     error: text('error'),                            // error message if failed
 });
+
+// --- INTELLICAR (TELEMATICS) ---
+
+/**
+ * One row per sync run (every 5 minutes).
+ * CEO dashboard reads this to show: last run status, duration, errors, vehicles updated.
+ */
+export const intellicarSyncRuns = pgTable('intellicar_sync_runs', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    trigger: varchar('trigger', { length: 20 }).notNull().default('cron'), // cron | manual | backfill
+    status: varchar('status', { length: 20 }).notNull().default('running'), // running | success | partial | failed
+    started_at: timestamp('started_at', { withTimezone: true }).defaultNow().notNull(),
+    finished_at: timestamp('finished_at', { withTimezone: true }),
+    window_start_epoch: bigint('window_start_epoch', { mode: 'number' }),
+    window_end_epoch: bigint('window_end_epoch', { mode: 'number' }),
+    vehicles_discovered: integer('vehicles_discovered').notNull().default(0),
+    vehicles_updated: integer('vehicles_updated').notNull().default(0),
+    endpoints_called: integer('endpoints_called').notNull().default(0),
+    records_written: integer('records_written').notNull().default(0),
+    errors_count: integer('errors_count').notNull().default(0),
+    errors: jsonb('errors'), // array of { endpoint, vehicleno?, message }
+    app_version: text('app_version'),
+}, (table) => ({
+    intellicarSyncRunsStartedAtIdx: index('intellicar_sync_runs_started_at_idx').on(table.started_at),
+    intellicarSyncRunsStatusStartedIdx: index('intellicar_sync_runs_status_started_idx').on(table.status, table.started_at),
+}));
+
+/**
+ * Optional but very useful for debugging:
+ * One row per (sync_run, endpoint, vehicle) call.
+ */
+export const intellicarSyncRunItems = pgTable('intellicar_sync_run_items', {
+    id: serial('id').primaryKey(),
+    sync_run_id: uuid('sync_run_id').references(() => intellicarSyncRuns.id, { onDelete: 'cascade' }).notNull(),
+    endpoint: text('endpoint').notNull(), // e.g. /api/standard/getlastgpsstatus
+    vehicleno: text('vehicleno'),
+    status: varchar('status', { length: 20 }).notNull(), // success | failed
+    pulled_at: timestamp('pulled_at', { withTimezone: true }).defaultNow().notNull(),
+    error: text('error'),
+    payload: jsonb('payload'), // keep compact; full raw still stored in intellicar_pulls
+}, (table) => ({
+    intellicarSyncRunItemsRunIdx: index('intellicar_sync_run_items_run_idx').on(table.sync_run_id),
+    intellicarSyncRunItemsEndpointIdx: index('intellicar_sync_run_items_endpoint_idx').on(table.endpoint, table.pulled_at),
+    intellicarSyncRunItemsVehicleEndpointIdx: index('intellicar_sync_run_items_vehicle_endpoint_idx').on(table.vehicleno, table.endpoint, table.pulled_at),
+}));
+
+/**
+ * Mapping: vehicleno -> deviceno (from listvehicledevicemapping)
+ */
+export const intellicarVehicleDeviceMap = pgTable('intellicar_vehicle_device_map', {
+    vehicleno: text('vehicleno').primaryKey(),
+    deviceno: text('deviceno').notNull(),
+    active: boolean('active').notNull().default(true),
+    first_seen_at: timestamp('first_seen_at', { withTimezone: true }).defaultNow().notNull(),
+    last_seen_at: timestamp('last_seen_at', { withTimezone: true }).defaultNow().notNull(),
+    last_sync_run_id: uuid('last_sync_run_id').references(() => intellicarSyncRuns.id),
+    raw: jsonb('raw'),
+}, (table) => ({
+    intellicarVehicleDeviceMapDevicenoIdx: index('intellicar_vehicle_device_map_deviceno_idx').on(table.deviceno),
+    intellicarVehicleDeviceMapActiveIdx: index('intellicar_vehicle_device_map_active_idx').on(table.active),
+    intellicarVehicleDeviceMapLastSeenIdx: index('intellicar_vehicle_device_map_last_seen_idx').on(table.last_seen_at),
+}));
+
+/**
+ * Latest GPS snapshot per vehicle (from getlastgpsstatus)
+ */
+export const intellicarGpsLatest = pgTable('intellicar_gps_latest', {
+    vehicleno: text('vehicleno').primaryKey().references(() => intellicarVehicleDeviceMap.vehicleno, { onDelete: 'cascade' }),
+
+    commtime_epoch: bigint('commtime_epoch', { mode: 'number' }).notNull(),
+    lat: decimal('lat', { precision: 10, scale: 7 }).notNull(),
+    lng: decimal('lng', { precision: 10, scale: 7 }).notNull(),
+    alti: decimal('alti', { precision: 10, scale: 2 }),
+    devbattery: decimal('devbattery', { precision: 10, scale: 2 }),
+    vehbattery: decimal('vehbattery', { precision: 10, scale: 2 }),
+    speed: decimal('speed', { precision: 10, scale: 2 }),
+    heading: decimal('heading', { precision: 10, scale: 2 }),
+    ignstatus: integer('ignstatus'),
+    mobili: integer('mobili'),
+    dout_1: integer('dout_1'),
+    dout_2: integer('dout_2'),
+
+    updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+    last_sync_run_id: uuid('last_sync_run_id').references(() => intellicarSyncRuns.id),
+    raw: jsonb('raw').notNull(),
+}, (table) => ({
+    intellicarGpsLatestUpdatedAtIdx: index('intellicar_gps_latest_updated_at_idx').on(table.updated_at),
+    intellicarGpsLatestCommtimeIdx: index('intellicar_gps_latest_commtime_idx').on(table.commtime_epoch),
+}));
+
+/**
+ * Latest CAN snapshot per vehicle (from getlatestcan)
+ */
+export const intellicarCanLatest = pgTable('intellicar_can_latest', {
+    vehicleno: text('vehicleno').primaryKey().references(() => intellicarVehicleDeviceMap.vehicleno, { onDelete: 'cascade' }),
+
+    soc_value: decimal('soc_value', { precision: 10, scale: 2 }),
+    soc_ts_epoch: bigint('soc_ts_epoch', { mode: 'number' }),
+
+    battery_temp_value: decimal('battery_temp_value', { precision: 10, scale: 2 }),
+    battery_temp_ts_epoch: bigint('battery_temp_ts_epoch', { mode: 'number' }),
+
+    battery_voltage_value: decimal('battery_voltage_value', { precision: 10, scale: 2 }),
+    battery_voltage_ts_epoch: bigint('battery_voltage_ts_epoch', { mode: 'number' }),
+
+    current_value: decimal('current_value', { precision: 10, scale: 2 }),
+    current_ts_epoch: bigint('current_ts_epoch', { mode: 'number' }),
+
+    updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+    last_sync_run_id: uuid('last_sync_run_id').references(() => intellicarSyncRuns.id),
+    raw: jsonb('raw').notNull(),
+}, (table) => ({
+    intellicarCanLatestUpdatedAtIdx: index('intellicar_can_latest_updated_at_idx').on(table.updated_at),
+}));
+
+/**
+ * Latest Fuel snapshot per vehicle (from getlastfuelstatus)
+ */
+export const intellicarFuelLatest = pgTable('intellicar_fuel_latest', {
+    vehicleno: text('vehicleno').primaryKey().references(() => intellicarVehicleDeviceMap.vehicleno, { onDelete: 'cascade' }),
+
+    fueltime_epoch: bigint('fueltime_epoch', { mode: 'number' }).notNull(),
+    fuellevel_pct: decimal('fuellevel_pct', { precision: 10, scale: 2 }),
+    fuellevel_litres: decimal('fuellevel_litres', { precision: 12, scale: 3 }),
+
+    updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+    last_sync_run_id: uuid('last_sync_run_id').references(() => intellicarSyncRuns.id),
+    raw: jsonb('raw').notNull(),
+}, (table) => ({
+    intellicarFuelLatestUpdatedAtIdx: index('intellicar_fuel_latest_updated_at_idx').on(table.updated_at),
+    intellicarFuelLatestFuelTimeIdx: index('intellicar_fuel_latest_fueltime_idx').on(table.fueltime_epoch),
+}));

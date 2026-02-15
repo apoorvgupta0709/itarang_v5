@@ -18,57 +18,56 @@ export async function intellicarGetToken(): Promise<string> {
   const res = await fetch(`${baseUrl}/api/standard/gettoken`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    // IMPORTANT: keep it server-side only
     body: JSON.stringify({ username, password }),
     cache: "no-store",
   });
 
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Intellicar token failed: ${res.status} ${text}`);
-  }
+  const text = await res.text().catch(() => "");
+  if (!res.ok) throw new Error(`Intellicar token failed: ${res.status} ${text}`);
 
-  const json = (await res.json()) as IntellicarTokenResponse;
+  let json: IntellicarTokenResponse | any = {};
+  try { json = JSON.parse(text); } catch {}
 
-  // Intellicar might return token under different keys
   const token =
-    json.token ||
-    json.access_token ||
+    json?.token ||
+    json?.access_token ||
     json?.data?.token ||
     json?.data?.access_token;
 
-  if (!token) {
-    throw new Error(`Intellicar token missing in response: ${JSON.stringify(json)}`);
-  }
-
+  if (!token) throw new Error(`Intellicar token missing in response: ${text}`);
   return token;
 }
 
 /**
- * Example helper: call any Intellicar endpoint using token
+ * Intellicar Standard API pattern (as per your examples):
+ * POST endpoint with JSON body containing token + other params.
  */
-export async function intellicarFetch(path: string, body?: any) {
+export async function intellicarPost(path: string, body: Record<string, any> = {}) {
   const baseUrl = mustEnv("INTELLICAR_BASE_URL");
   const token = await intellicarGetToken();
 
   const res = await fetch(`${baseUrl}${path}`, {
-    method: body ? "POST" : "GET",
-    headers: {
-      "Content-Type": "application/json",
-      // adjust header name if Intellicar expects something else
-      Authorization: `Bearer ${token}`,
-    },
-    body: body ? JSON.stringify(body) : undefined,
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, ...body }),
     cache: "no-store",
   });
 
-  const text = await res.text();
+  const text = await res.text().catch(() => "");
   let json: any = null;
   try { json = JSON.parse(text); } catch {}
 
-  if (!res.ok) {
-    throw new Error(`Intellicar fetch failed: ${res.status} ${text}`);
-  }
-
+  if (!res.ok) throw new Error(`Intellicar call failed: ${res.status} ${text}`);
   return json ?? text;
+}
+
+export function toNum(v: any): number | null {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+export function toDecStr(v: any): string | null {
+  if (v === null || v === undefined || v === "") return null;
+  return String(v);
 }

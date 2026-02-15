@@ -3,8 +3,9 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, ShoppingCart, Users, FileText, LogOut, Phone, PieChart, Package, FileCheck, Landmark, Briefcase, Building, Receipt, ClipboardCheck } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, Users, FileText, Phone, PieChart, Package, FileCheck, Landmark, Briefcase, Building, Receipt, ClipboardCheck, Satellite } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/components/auth/AuthProvider';
 
 const roleNavigation: Record<string, any[]> = {
     ceo: [
@@ -17,6 +18,11 @@ const roleNavigation: Record<string, any[]> = {
                 { id: 'inventory-reports', label: 'Inventory', icon: PieChart, href: '/inventory' },
                 { id: 'leads', label: 'Leads', icon: Users, href: '/leads' },
                 { id: 'deals', label: 'Deals', icon: FileCheck, href: '/deals' },
+            ]
+        },
+        {
+            section: 'TELEMATICS', items: [
+                { id: 'intellicar', label: 'Intellicar', icon: Satellite, href: '/ceo/intellicar' },
             ]
         },
     ],
@@ -112,8 +118,6 @@ const roleNavigation: Record<string, any[]> = {
     ]
 };
 
-import { useAuth } from '@/components/auth/AuthProvider';
-
 export function Sidebar() {
     const pathname = usePathname();
     const { user, loading } = useAuth();
@@ -165,7 +169,6 @@ export function Sidebar() {
                 ))}
             </div>
 
-            {/* User Profile Section Placeholder */}
             <div className="p-4 border-t border-gray-100/50 space-y-2">
                 <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-white hover:shadow-sm transition-all group cursor-default">
                     <div className="w-9 h-9 bg-brand-600 rounded-full flex items-center justify-center text-white font-semibold text-sm shadow-sm uppercase">
