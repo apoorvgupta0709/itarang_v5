@@ -38,10 +38,6 @@ export async function intellicarGetToken(): Promise<string> {
   return token;
 }
 
-/**
- * Intellicar Standard API pattern (as per your examples):
- * POST endpoint with JSON body containing token + other params.
- */
 export async function intellicarPost(path: string, body: Record<string, any> = {}) {
   const baseUrl = mustEnv("INTELLICAR_BASE_URL");
   const token = await intellicarGetToken();
@@ -61,13 +57,22 @@ export async function intellicarPost(path: string, body: Record<string, any> = {
   return json ?? text;
 }
 
+/** Returns number or null (treats "NA", "", null as null) */
 export function toNum(v: any): number | null {
-  if (v === null || v === undefined || v === "") return null;
-  const n = Number(v);
+  if (v === null || v === undefined) return null;
+  const s = String(v).trim();
+  if (!s || s.toUpperCase() === "NA" || s.toLowerCase() === "null") return null;
+  const n = Number(s);
   return Number.isFinite(n) ? n : null;
 }
 
+/**
+ * For Drizzle decimal columns: return a numeric STRING or null.
+ * This prevents inserting "NA" into numeric columns.
+ */
 export function toDecStr(v: any): string | null {
-  if (v === null || v === undefined || v === "") return null;
-  return String(v);
+  const n = toNum(v);
+  if (n === null) return null;
+  // keep as string for drizzle decimal
+  return String(n);
 }

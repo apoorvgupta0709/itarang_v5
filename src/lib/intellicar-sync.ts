@@ -27,13 +27,21 @@ function nowIso() {
 }
 
 async function logPull(endpoint: string, status: "success" | "failed", payload?: any, error?: any) {
-  await db.insert(intellicarPulls).values({
-    id: await generateId("INTC", intellicarPulls),
-    endpoint,
-    status,
-    payload: payload ?? null,
-    error: error ? (error?.message || String(error)) : null,
-  });
+  // Use UUID to avoid collisions
+  const id = `INTC-${crypto.randomUUID()}`;
+
+  try {
+    await db.insert(intellicarPulls).values({
+      id,
+      endpoint,
+      status,
+      payload: payload ?? null,
+      error: error ? (error?.message || String(error)) : null,
+    });
+  } catch (e) {
+    // IMPORTANT: never let logging failure crash the sync
+    console.error("intellicar_pulls logging failed:", e);
+  }
 }
 
 async function logRunItem(params: {
