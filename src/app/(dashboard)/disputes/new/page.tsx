@@ -6,9 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
-import { AlertTriangle, Info, Camera } from 'lucide-react';
+import { Plus, Trash2, Calculator, Loader2, AlertTriangle, Info, Camera } from 'lucide-react';
 
-export default function NewDisputePage() {
+import { Suspense } from 'react';
+
+function NewDisputeContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const orderIdParam = searchParams.get('order_id');
@@ -127,5 +129,18 @@ export default function NewDisputePage() {
                 </div>
             </form>
         </div>
+    );
+}
+
+export default function NewDisputePage() {
+    return (
+        <Suspense fallback={
+            <div className="h-[60vh] flex flex-col items-center justify-center gap-4">
+                <Loader2 className="w-8 h-8 text-brand-600 animate-spin" />
+                <p className="text-sm text-gray-500 font-medium">Loading form...</p>
+            </div>
+        }>
+            <NewDisputeContent />
+        </Suspense>
     );
 }

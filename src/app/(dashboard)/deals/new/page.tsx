@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
-import { Plus, Trash2, Calculator } from 'lucide-react';
+import { Plus, Trash2, Calculator, Loader2 } from 'lucide-react';
 
 interface Product {
     id: string;
@@ -14,7 +14,9 @@ interface Product {
     base_price: number;
 }
 
-export default function NewDealPage() {
+import { Suspense } from 'react';
+
+function NewDealContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const leadId = searchParams.get('lead_id');
@@ -240,5 +242,18 @@ export default function NewDealPage() {
                 </div>
             </form>
         </div>
+    );
+}
+
+export default function NewDealPage() {
+    return (
+        <Suspense fallback={
+            <div className="h-[60vh] flex flex-col items-center justify-center gap-4">
+                <Loader2 className="w-8 h-8 text-brand-600 animate-spin" />
+                <p className="text-sm text-gray-500 font-medium">Loading form...</p>
+            </div>
+        }>
+            <NewDealContent />
+        </Suspense>
     );
 }
