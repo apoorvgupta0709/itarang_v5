@@ -7,10 +7,19 @@ import {
   intellicarGpsLatest,
   intellicarCanLatest,
   intellicarFuelLatest,
+  intellicarGpsHistory,
+  intellicarCanHistory,
+  intellicarFuelHistory,
+  intellicarDistanceWindows,
+  intellicarHistoryCheckpoints,
+  intellicarHistoryJobControl,
 } from "@/lib/db/schema";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, and, sql } from "drizzle-orm";
 import { generateId } from "@/lib/api-utils";
-import { intellicarPost, toNum, toDecStr } from "@/lib/intellicar";
+import {
+  intellicarPost, toNum, toDecStr,
+  getgpshistory, getbatterymetricshistory, getfuelhistory, getdistancetravelled
+} from "@/lib/intellicar";
 
 type RunOpts = {
   trigger: "cron" | "manual" | "backfill";
@@ -24,6 +33,16 @@ function okStatus(s: any) {
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+/**
+ * Floors a timestamp to the nearest 5-minute interval (in ms).
+ */
+export function computeWindowMs(nowMs: number) {
+  const FIVE_MINS = 5 * 60 * 1000;
+  const endMs = Math.floor(nowMs / FIVE_MINS) * FIVE_MINS;
+  const startMs = endMs - FIVE_MINS;
+  return { startMs, endMs };
 }
 
 async function logPull(endpoint: string, status: "success" | "failed", payload?: any, error?: any) {
@@ -64,6 +83,7 @@ async function logRunItem(params: {
 
 export async function runIntellicarSync(opts: RunOpts) {
   const startedAt = new Date();
+  const { startMs: windowStartMs, endMs: windowEndMs } = computeWindowMs(startedAt.getTime());
 
   // 1) Create sync run
   const [run] = await db
@@ -72,6 +92,8 @@ export async function runIntellicarSync(opts: RunOpts) {
       trigger: opts.trigger,
       status: "running",
       started_at: startedAt,
+      window_start_ms: windowStartMs,
+      window_end_ms: windowEndMs,
       app_version: process.env.NEXT_PUBLIC_APP_VERSION || null,
     })
     .returning();
@@ -304,8 +326,8 @@ export async function runIntellicarSync(opts: RunOpts) {
   const hasErrors = errors.length > 0;
   const status =
     !vehiclesDiscovered ? (hasErrors ? "failed" : "failed")
-    : hasErrors ? "partial"
-    : "success";
+      : hasErrors ? "partial"
+        : "success";
 
   await db
     .update(intellicarSyncRuns)
@@ -333,4 +355,223 @@ export async function runIntellicarSync(opts: RunOpts) {
     errors,
     serverTime: nowIso(),
   };
+}
+
+export async function ensureHistoryJobRow() {
+  let [job] = await db.select().from(intellicarHistoryJobControl).where(eq(intellicarHistoryJobControl.id, 1));
+  if (!job) {
+    [job] = await db.insert(intellicarHistoryJobControl).values({ id: 1 }).returning();
+  }
+  return job;
+}
+
+export async function setHistoryJobStatus(status: 'running' | 'paused' | 'idle') {
+  await ensureHistoryJobRow();
+  await db.update(intellicarHistoryJobControl).set({ status, updated_at: new Date() }).where(eq(intellicarHistoryJobControl.id, 1));
+  return { status };
+}
+
+export async function getHistoryStatusSummary() {
+  const job = await ensureHistoryJobRow();
+  const rawCheckpoints = await db.select().from(intellicarHistoryCheckpoints);
+
+  const { endMs: globalEndMs } = computeWindowMs(Date.now());
+  const progress: any = { globalEndMs };
+
+  const datasets = ['gps', 'can', 'fuel_pct', 'fuel_litres', 'distance'];
+  datasets.forEach(ds => progress[ds] = { min: null, max: null, lagMs: null, completeVehicles: 0, totalVehicles: 0 });
+
+  rawCheckpoints.forEach(cp => {
+    const ds = progress[cp.dataset];
+    if (ds) {
+      ds.totalVehicles++;
+      const endMs = Number(cp.last_synced_end_ms);
+      if (ds.min === null || endMs < ds.min) ds.min = endMs;
+      if (ds.max === null || endMs > ds.max) ds.max = endMs;
+      if (endMs >= globalEndMs) ds.completeVehicles++;
+    }
+  });
+
+  datasets.forEach(ds => {
+    const d = progress[ds];
+    if (d.min !== null) {
+      d.lagMs = globalEndMs - d.min;
+    } else {
+      d.lagMs = globalEndMs - Number(job.historical_start_ms);
+    }
+  });
+
+  return { job_control: job, progress };
+}
+
+export async function runIntellicarHistoricalRunOnce(opts: { maxWindowsPerRun?: number; vehicleno?: string } = {}) {
+  const startedAt = new Date();
+
+  // 1) Check job control
+  const job = await ensureHistoryJobRow();
+
+  if (job.status !== "running") {
+    return { status: "skipped", reason: `Job is ${job.status}`, serverTime: nowIso() };
+  }
+
+  const maxWindows = opts.maxWindowsPerRun ?? job.max_windows_per_run;
+  const LOCKED_HISTORICAL_START_MS = Date.parse("2025-09-01T00:00:00.000Z");
+  const { endMs: globalEndMs } = computeWindowMs(startedAt.getTime());
+
+  // 2) Get mapping
+  const mappings = await db.select().from(intellicarVehicleDeviceMap).where(opts.vehicleno ? eq(intellicarVehicleDeviceMap.vehicleno, opts.vehicleno) : eq(intellicarVehicleDeviceMap.active, true));
+
+  const datasets = ['gps', 'can', 'fuel_pct', 'fuel_litres', 'distance'] as const;
+  let totalWindowsProcessed = 0;
+  const summary: any[] = [];
+
+  // Loop vehicles and datasets until we hit maxWindows
+  outer: for (const m of mappings) {
+    for (const dataset of datasets) {
+      if (totalWindowsProcessed >= maxWindows) break outer;
+
+      const [checkpoint] = await db.select().from(intellicarHistoryCheckpoints).where(and(eq(intellicarHistoryCheckpoints.vehicleno, m.vehicleno), eq(intellicarHistoryCheckpoints.dataset, dataset)));
+
+      let currentStartMs = Math.max(checkpoint ? Number(checkpoint.last_synced_end_ms) : LOCKED_HISTORICAL_START_MS, LOCKED_HISTORICAL_START_MS);
+
+      while (currentStartMs < globalEndMs && totalWindowsProcessed < maxWindows) {
+        const currentJob = await ensureHistoryJobRow();
+        if (currentJob.status !== "running") break outer; // Pause/Stop mid-run
+
+        const currentEndMs = currentStartMs + (5 * 60 * 1000);
+        if (currentEndMs > globalEndMs) break;
+
+        try {
+          await syncDatasetWindow(m.vehicleno, dataset, currentStartMs, currentEndMs);
+
+          // Update checkpoint
+          await db.insert(intellicarHistoryCheckpoints).values({
+            vehicleno: m.vehicleno,
+            dataset,
+            last_synced_end_ms: currentEndMs,
+            updated_at: new Date(),
+          }).onConflictDoUpdate({
+            target: [intellicarHistoryCheckpoints.vehicleno, intellicarHistoryCheckpoints.dataset],
+            set: { last_synced_end_ms: currentEndMs, updated_at: new Date() }
+          });
+
+          totalWindowsProcessed++;
+          currentStartMs = currentEndMs;
+        } catch (e: any) {
+          console.error(`Historical sync failed for ${m.vehicleno} ${dataset} [${currentStartMs}-${currentEndMs}]:`, e);
+          // If a window fails, we might want to retry it next time or skip. For now, we stop for this vehicle/dataset.
+          break;
+        }
+      }
+    }
+  }
+
+  return {
+    status: "success",
+    windowsProcessed: totalWindowsProcessed,
+    startedAt: startedAt.toISOString(),
+    finishedAt: new Date().toISOString(),
+    serverTime: nowIso(),
+  };
+}
+
+async function syncDatasetWindow(vehicleno: string, dataset: string, startMs: number, endMs: number) {
+  const FIVE_MINS = 5 * 60 * 1000;
+
+  if (dataset === 'gps') {
+    const payload = await getgpshistory("", vehicleno, startMs, endMs);
+    if (!okStatus(payload?.status)) throw new Error(payload?.msg || "GPS history failed");
+    const rows = Array.isArray(payload?.data) ? payload.data : [];
+    for (const d of rows) {
+      let commtime_ms = Number(d.commtime);
+      if (commtime_ms < 1e12) commtime_ms *= 1000;
+
+      const latNum = Number(d.lat);
+      const lngNum = Number(d.lng);
+      if (isNaN(latNum) || isNaN(lngNum) || !d.lat || !d.lng) continue;
+
+      await db.insert(intellicarGpsHistory).values({
+        vehicleno,
+        commtime_ms,
+        lat: String(latNum),
+        lng: String(lngNum),
+        alti: toDecStr(d.alti),
+        speed: toDecStr(d.speed),
+        heading: toDecStr(d.heading),
+        ignstatus: toNum(d.ignstatus),
+        mobili: toNum(d.mobili),
+        devbattery: toDecStr(d.devbattery),
+        vehbattery: toDecStr(d.vehbattery),
+        raw: d,
+      }).onConflictDoNothing();
+    }
+  }
+  else if (dataset === 'can') {
+    const payload = await getbatterymetricshistory("", vehicleno, startMs, endMs);
+    if (!okStatus(payload?.status)) throw new Error(payload?.msg || "CAN history failed");
+    const rows = Array.isArray(payload?.data) ? payload.data : [];
+    for (const d of rows) {
+      let time_ms = Number(d.time);
+      if (time_ms < 1e12) time_ms *= 1000;
+
+      await db.insert(intellicarCanHistory).values({
+        vehicleno,
+        time_ms,
+        soc: toDecStr(d.soc),
+        soh: toDecStr(d.soh),
+        battery_temp: toDecStr(d.battery_temp),
+        battery_voltage: toDecStr(d.battery_voltage),
+        current: toDecStr(d.current),
+        charge_cycle: toNum(d.charge_cycle),
+        raw: d,
+      }).onConflictDoNothing();
+    }
+  }
+  else if (dataset === 'fuel_pct' || dataset === 'fuel_litres') {
+    const inlitres = dataset === 'fuel_litres';
+    const payload = await getfuelhistory("", vehicleno, inlitres, startMs, endMs);
+    if (!okStatus(payload?.status)) throw new Error(payload?.msg || "Fuel history failed");
+    const rows = Array.isArray(payload?.data) ? payload.data : [];
+    for (const d of rows) {
+      let time_ms = Number(d.time);
+      if (time_ms < 1e12) time_ms *= 1000;
+
+      await db.insert(intellicarFuelHistory).values({
+        vehicleno,
+        time_ms,
+        in_litres: inlitres,
+        value: toDecStr(d.value),
+        raw: d,
+      }).onConflictDoNothing();
+    }
+  }
+  else if (dataset === 'distance') {
+    const payload = await getdistancetravelled("", vehicleno, startMs, endMs);
+    if (!okStatus(payload?.status)) throw new Error(payload?.msg || "Distance failed");
+    let distanceVal = payload?.data?.distance;
+    if (distanceVal === undefined) {
+      if (Array.isArray(payload?.data)) {
+        if (payload.data.length > 0) {
+          distanceVal = payload.data[0].distance ?? payload.data[0].value;
+        } else {
+          distanceVal = 0; // Empty payload means 0 distance
+        }
+      } else {
+        distanceVal = payload?.data;
+      }
+    }
+
+    if (distanceVal !== undefined && distanceVal !== null && String(distanceVal).trim() !== "") {
+      const dNum = Number(distanceVal);
+      if (!isNaN(dNum)) {
+        await db.insert(intellicarDistanceWindows).values({
+          vehicleno,
+          start_ms: startMs,
+          end_ms: endMs,
+          distance: String(dNum),
+          raw: payload.data || null,
+        }).onConflictDoNothing();
+      }
+    }
+  }
 }

@@ -11,10 +11,10 @@ const assignSchema = z.object({
     lead_actor: z.string().uuid().optional(),
 });
 
-export const POST = withErrorHandler(async (req: Request, { params }: { params: { id: string } }) => {
+export const POST = withErrorHandler(async (req: Request, { params }: { params: Promise<{ id: string }> }) => {
     const user = await requireRole(['sales_head', 'business_head', 'ceo', 'sales_manager']);
 
-    const leadId = params.id;
+    const { id: leadId } = await params;
     const body = await req.json();
     const result = assignSchema.safeParse(body);
     if (!result.success) return errorResponse('Validation Error', 400);

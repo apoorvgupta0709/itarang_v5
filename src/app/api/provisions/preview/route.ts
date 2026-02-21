@@ -76,21 +76,21 @@ export const POST = withErrorHandler(async (req: Request) => {
   // details for UI
   const toDetails: RecipientDetail[] = oemSalesManager?.contact_email
     ? [{
-        name: oemSalesManager.contact_name || 'Sales Manager',
-        email: oemSalesManager.contact_email,
-        role: 'sales_manager',
-        source: 'oem',
-      }]
+      name: oemSalesManager.contact_name || 'Sales Manager',
+      email: oemSalesManager.contact_email,
+      role: 'sales_manager',
+      source: 'oem',
+    }]
     : [];
 
   const ccDetails: RecipientDetail[] = [
     ...(oemSalesHead?.contact_email
       ? [{
-          name: oemSalesHead.contact_name || 'Sales Head',
-          email: oemSalesHead.contact_email,
-          role: 'sales_head',
-          source: 'oem',
-        }]
+        name: oemSalesHead.contact_name || 'Sales Head',
+        email: oemSalesHead.contact_email,
+        role: 'sales_head',
+        source: 'oem' as const,
+      }]
       : []),
     ...internalSOM.map((u) => ({
       name: u.name,
@@ -154,11 +154,11 @@ export const POST = withErrorHandler(async (req: Request) => {
       email_cc: finalCcDetails,
       whatsapp: oemSalesManager
         ? {
-            name: oemSalesManager.contact_name || 'Sales Manager',
-            phone: whatsappToPhone,
-            role: 'sales_manager',
-            source: 'oem' as const,
-          }
+          name: oemSalesManager.contact_name || 'Sales Manager',
+          phone: whatsappToPhone,
+          role: 'sales_manager',
+          source: 'oem' as const,
+        }
         : null,
     },
 

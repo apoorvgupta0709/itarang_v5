@@ -9,6 +9,7 @@ export type WebhookType =
   | 'pdi-completed'
   | 'order-created-request-pi'
   | 'pi-approval-workflow'
+  | 'invoice-approval-workflow' // ✅ Fixed error
   | 'invoice-uploaded'
   | 'payment-made'
   | 'grn-created'

@@ -67,5 +67,6 @@ export async function generateId(prefix: string, table: any): Promise<string> {
         sequence = lastSeq + 1;
     }
 
-    return `${prefix}-${date}-${sequence.toString().padStart(3, '0')}`;
+    const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+    return `${prefix}-${date}-${sequence.toString().padStart(3, '0')}-${random}`;
 }

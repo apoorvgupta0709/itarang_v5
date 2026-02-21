@@ -1,6 +1,6 @@
 import { withErrorHandler, successResponse, errorResponse, generateId } from "@/lib/api-utils";
 import { db } from "@/lib/db";
-import { intellicarFetch } from "@/lib/intellicar";
+import { intellicarPost } from "@/lib/intellicar";
 import { intellicarPulls } from "@/lib/db/schema";
 
 export const POST = withErrorHandler(async (req: Request) => {
@@ -19,7 +19,7 @@ export const POST = withErrorHandler(async (req: Request) => {
   const pullId = await generateId("INTC", intellicarPulls);
 
   try {
-    const payload = await intellicarFetch(endpoint, body);
+    const payload = await intellicarPost(endpoint, body);
 
     await db.insert(intellicarPulls).values({
       id: pullId,

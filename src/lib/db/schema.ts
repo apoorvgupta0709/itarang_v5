@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, integer, boolean, varchar, decimal, jsonb, uuid, index, bigint, serial } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, integer, boolean, varchar, decimal, jsonb, uuid, index, bigint, serial, uniqueIndex } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 // --- FOUNDATION ---
@@ -717,8 +717,8 @@ export const intellicarSyncRuns = pgTable('intellicar_sync_runs', {
     status: varchar('status', { length: 20 }).notNull().default('running'), // running | success | partial | failed
     started_at: timestamp('started_at', { withTimezone: true }).defaultNow().notNull(),
     finished_at: timestamp('finished_at', { withTimezone: true }),
-    window_start_epoch: bigint('window_start_epoch', { mode: 'number' }),
-    window_end_epoch: bigint('window_end_epoch', { mode: 'number' }),
+    window_start_ms: bigint('window_start_ms', { mode: 'number' }),
+    window_end_ms: bigint('window_end_ms', { mode: 'number' }),
     vehicles_discovered: integer('vehicles_discovered').notNull().default(0),
     vehicles_updated: integer('vehicles_updated').notNull().default(0),
     endpoints_called: integer('endpoints_called').notNull().default(0),
@@ -836,3 +836,86 @@ export const intellicarFuelLatest = pgTable('intellicar_fuel_latest', {
     intellicarFuelLatestUpdatedAtIdx: index('intellicar_fuel_latest_updated_at_idx').on(table.updated_at),
     intellicarFuelLatestFuelTimeIdx: index('intellicar_fuel_latest_fueltime_idx').on(table.fueltime_epoch),
 }));
+
+export const intellicarGpsHistory = pgTable('intellicar_gps_history', {
+    id: serial('id').primaryKey(),
+    vehicleno: text('vehicleno').notNull().references(() => intellicarVehicleDeviceMap.vehicleno, { onDelete: 'cascade' }),
+    commtime_ms: bigint('commtime_ms', { mode: 'number' }).notNull(),
+    lat: decimal('lat', { precision: 10, scale: 7 }).notNull(),
+    lng: decimal('lng', { precision: 10, scale: 7 }).notNull(),
+    alti: decimal('alti', { precision: 10, scale: 2 }),
+    speed: decimal('speed', { precision: 10, scale: 2 }),
+    heading: decimal('heading', { precision: 10, scale: 2 }),
+    ignstatus: integer('ignstatus'),
+    mobili: integer('mobili'),
+    devbattery: decimal('devbattery', { precision: 10, scale: 2 }),
+    vehbattery: decimal('vehbattery', { precision: 10, scale: 2 }),
+    raw: jsonb('raw'),
+    created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+    intellicarGpsHistoryVehTimeUnique: uniqueIndex('intellicar_gps_history_veh_time_unique').on(table.vehicleno, table.commtime_ms),
+    intellicarGpsHistoryVehTimeIdx: index('intellicar_gps_history_veh_time_idx').on(table.vehicleno, table.commtime_ms),
+}));
+
+export const intellicarCanHistory = pgTable('intellicar_can_history', {
+    id: serial('id').primaryKey(),
+    vehicleno: text('vehicleno').notNull().references(() => intellicarVehicleDeviceMap.vehicleno, { onDelete: 'cascade' }),
+    time_ms: bigint('time_ms', { mode: 'number' }).notNull(),
+    soc: decimal('soc', { precision: 10, scale: 2 }),
+    soh: decimal('soh', { precision: 10, scale: 2 }),
+    battery_temp: decimal('battery_temp', { precision: 10, scale: 2 }),
+    battery_voltage: decimal('battery_voltage', { precision: 10, scale: 2 }),
+    current: decimal('current', { precision: 10, scale: 2 }),
+    charge_cycle: integer('charge_cycle'),
+    raw: jsonb('raw'),
+    created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+    intellicarCanHistoryVehTimeUnique: uniqueIndex('intellicar_can_history_veh_time_unique').on(table.vehicleno, table.time_ms),
+    intellicarCanHistoryVehTimeIdx: index('intellicar_can_history_veh_time_idx').on(table.vehicleno, table.time_ms),
+}));
+
+export const intellicarFuelHistory = pgTable('intellicar_fuel_history', {
+    id: serial('id').primaryKey(),
+    vehicleno: text('vehicleno').notNull().references(() => intellicarVehicleDeviceMap.vehicleno, { onDelete: 'cascade' }),
+    time_ms: bigint('time_ms', { mode: 'number' }).notNull(),
+    in_litres: boolean('in_litres').notNull(),
+    value: decimal('value', { precision: 12, scale: 3 }),
+    raw: jsonb('raw'),
+    created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+    intellicarFuelHistoryVehTimeUnique: uniqueIndex('intellicar_fuel_history_veh_time_unique').on(table.vehicleno, table.time_ms, table.in_litres),
+    intellicarFuelHistoryVehTimeIdx: index('intellicar_fuel_history_veh_time_idx').on(table.vehicleno, table.time_ms),
+}));
+
+export const intellicarDistanceWindows = pgTable('intellicar_distance_windows', {
+    id: serial('id').primaryKey(),
+    vehicleno: text('vehicleno').notNull().references(() => intellicarVehicleDeviceMap.vehicleno, { onDelete: 'cascade' }),
+    start_ms: bigint('start_ms', { mode: 'number' }).notNull(),
+    end_ms: bigint('end_ms', { mode: 'number' }).notNull(),
+    distance: decimal('distance', { precision: 12, scale: 3 }),
+    raw: jsonb('raw'),
+    created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+    intellicarDistanceWindowsVehRangeUnique: uniqueIndex('intellicar_distance_windows_veh_range_unique').on(table.vehicleno, table.start_ms, table.end_ms),
+    intellicarDistanceWindowsVehStartIdx: index('intellicar_distance_windows_veh_start_idx').on(table.vehicleno, table.start_ms),
+}));
+
+export const intellicarHistoryCheckpoints = pgTable('intellicar_history_checkpoints', {
+    id: serial('id').primaryKey(),
+    vehicleno: text('vehicleno').notNull().references(() => intellicarVehicleDeviceMap.vehicleno, { onDelete: 'cascade' }),
+    dataset: text('dataset').notNull(), // 'gps', 'can', 'fuel_pct', 'fuel_litres', 'distance'
+    last_synced_end_ms: bigint('last_synced_end_ms', { mode: 'number' }).notNull(),
+    updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+    intellicarHistoryCheckpointsVehDatasetUnique: uniqueIndex('intellicar_history_checkpoints_veh_dataset_unique').on(table.vehicleno, table.dataset),
+    intellicarHistoryCheckpointsDatasetEndIdx: index('intellicar_history_checkpoints_dataset_end_idx').on(table.dataset, table.last_synced_end_ms),
+    intellicarHistoryCheckpointsVehIdx: index('intellicar_history_checkpoints_veh_idx').on(table.vehicleno),
+}));
+
+export const intellicarHistoryJobControl = pgTable('intellicar_history_job_control', {
+    id: integer('id').primaryKey().default(1),
+    status: text('status', { enum: ['running', 'paused', 'idle'] }).notNull().default('idle'),
+    historical_start_ms: bigint('historical_start_ms', { mode: 'number' }).notNull().default(1725148800000), // 2025-09-01T00:00:00Z
+    max_windows_per_run: integer('max_windows_per_run').notNull().default(48),
+    updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
