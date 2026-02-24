@@ -1,0 +1,1446 @@
+Dashboard_Button Schema
+Button Functions & User Interactions
+Top Menu Action Buttons
+	•	SEARCH BAR
+Purpose: Global search across dealer’s ecosystem.
+Workflow:
+	•	Click → Open global search overlay
+	•	Real-time search (debounced API)
+	•	Show categorized results:
+	•	Leads
+	•	Loans
+	•	Assets
+	•	Inventory
+	•	Campaigns
+	•	Customers
+
+	•	Each result clickable → redirect to respective module page
+	•	Search parameters supported:
+	•	Customer Name
+	•	Mobile Number
+	•	Lead ID
+	•	Loan ID
+	•	Asset ID
+	•	Campaign ID
+	•	Inventory ID
+	•	Service ticket ID
+	•	Add:
+	•	Recent searches
+	•	Fuzzy search
+2. Dealer Profile Dropdown
+Flow
+Click → dropdown:
+	•	View Profile
+	•	Change Password
+	•	Active subscription status
+	•	Logout
+
+
+
+
+
+
+
+
+
+Main Action Buttons
+	•	NEW LEAD 
+Keep Modal Flow (Click → Create New Lead Form)
+	•	PROCESS LOAN (LOAN FACILITATION)
+
+Logic
+
+‘Payment_Method = Finance/Loan
+AND
+documents_uploaded = true
+AND
+facilitation_fee_status != PAID’
+
+Probable screen:
+Open Loan Facilitation Queue screen
+	•	Table View:
+Columns:
+	•	Customer Name
+	•	Mobile
+	•	Document Status
+	•	Company Validation Status
+	•	Facilitation Fee Status
+	•	Action
+	•	Filters:
+	•	Document Uploaded
+	•	Under Validation
+	•	Validation Passed
+	•	Fee Pending
+	•	Click "Process"
+
+Open detailed pseudo screen:
+	•	Uploaded Documents viewer
+	•	Validation notes
+	•	Fee amount payable
+	•	Pay Facilitation Fee button
+	•	On Fee Payment:
+	•	Update status → FEE_PAID
+	•	Move file to Loan Management module
+
+	•	Add Assets
+(Click → Pseudo Screen)
+	•	VIEW (Recent Leads)
+
+	•	Displays modal with customer information, lead status, timeline, associated loans, edit options, and action buttons
+	•	Display time since last contact with alert if >7 days
+	•	View Lead (Click → Lead Page)
+	•	START CAMPAIGN
+(Click → Pseudo Screen)
+
+Probable Logic: Opens campaign wizard with audience selection, message composition, channel selection, and confirmation
+	•	Pre-built segments: All Customers, Hot Leads, Pending Loans, Overdue Payments, Inactive Customers
+	•	Custom segment builder with AND/OR logic
+	•	Filter criteria: Lead status, Loan status, Purchase history, Last contact date, Location, Product interest
+	•	Show estimated audience size as filters are applied
+	•	Save custom segments for future use
+
+
+Navigation Menu Functions
+	•	LEAD MANAGEMENT
+(Click → All Lead list with filters(Pseudo screen))
+table view, sorting, bulk actions, Create New Lead button
+	•	Loan MANAGEMENT
+(Click → All Loan file list with payment processed filters, post disbursal payment and actionable(Pseudo screen))
+	•	Deploy Asset MANAGEMENT
+(Click →Deployed Asset table, filters by type payment type, product type and status, QR code generation, deployment history, maintenance tracking, battery health tracking, telemetry support (Pseudo screen))
+	•	Service  MANAGEMENT
+(Click → Pseudo Screen)
+	•	ORDERS FROM OEM
+(Click → Pseudo Screen)
+	•	INVENTORY
+(Click → Pseudo Screen)
+
+
+
+
+Create New Lead_Button Schema	
+Button Functions & User Interactions
+Screen Overview
+This is the first step in a 5-step workflow for creating a new lead in the iTarang CRM system. The screen collects personal information, product details, vehicle details, and lead classification data.
+Workflow Position: Step 1 of 5
+Reference ID Format: #IT-2026-0000001 (Auto-generated)
+Generate reference: #IT-[YEAR]-[SEQUENCE]
+Top Menu Action Buttons
+Workflow Type: Multi-step transactional form
+State: LEAD_DRAFT until final submission
+
+	•	HEADER BUTTONS & ELEMENTS
+Frontend: 
+Workflow Progress Bar
+Type: Display-only component
+Function
+	•	Shows: Step 1 of 5
+	•	Highlights current step
+	•	Non-clickable
+Backend:
+	•	No API.
+	•	Progress state derived from route /leads/create?step=1
+
+	•	Info (ℹ️) Button
+Frontend:
+	•	On click → Open help modal
+	•	Modal shows:
+	•	Required fields explanation
+	•	Loan compliance guidelines
+	•	Example formats
+Backend: Static content or fetched: GET /api/help/lead-step-1
+	•	Auto-fill from ID
+Frontend
+	•	Click → Open ‘Auto fill customer details pop up’ modal
+	•	User click:
+	•	Aadhaar Front: To upload image in png, jpeg and PDF 
+	•	Aadhaar Back: To upload image in png,jpeg and PDF
+	•	Start scanning: CALL API initiate OCR API, Both the uploaded images run through OCR and extract Name, Husband/Father Name, Date of Birth, Current Address
+	•	Validation:
+	•	Add File Size & Format Validation
+	•	Max file size: 5MB per image
+	•	Allowed formats: PNG, JPEG, PDF
+	•	Image quality check (min 300 DPI recommended)
+	•	Show upload progress bar
+	•	OCR Error Handling
+	•	What if OCR fails to extract data?:
+	•	Show error message: 'Could not read document. Please ensure image is clear'
+	•	Allow manual entry fallback
+	•	Retry option
+	•	Support for poor quality scans
+	Backend:
+	•	POST /api/leads/autofillRequest: { idType: 'aadhaar|pan|customer|lead', idValue: 'string' }Response: { success: boolean, data: { fullName, fatherName, dob, address, phone, etc. }, message: string }
+State Update:
+	•	Overwrites matching fields
+	•	Marks form as “Auto-filled”
+	•	Logs audit event
+
+
+PERSONAL INFORMATION – FIELD WORKFLOW
+All fields update local form state until save.
+	•	Full Name (Required)
+Validation:
+	•	2–100 chars
+	•	Letters + spaces + . -
+	•	Auto-capitalize first letter of each word
+	•	Validation: At least 2 characters
+	•	Error message: 'Please enter a valid full name’, ‘No special characters except’
+Frontend:
+	•	Validate on blur
+	•	Red border if invalid
+Backend:
+	•	Revalidated during submission
+	•	Value syncs to form state
+
+	•	Father/Husband Name (Required for loan eligibility)
+	•	Same validation as Full Name.
+	•	If the product selected later requires a loan: → This becomes mandatory.
+
+	•	Date of Birth (Required)
+Frontend:
+	•	Calendar picker
+	•	Age >= 18
+	•	Show calculated age
+Backend:
+	•	Store ISO format
+
+	•	Phone Number (Critical Field)
+Frontend:
+	•	Format: +91 XXXXX XXXXX
+	•	Real-time validation
+	•	AJAX duplicate check: GET /api/leads/check-duplicate?phone=9876543210
+If duplicate:
+	•	Show warning
+	•	Provide "View Existing Lead" button
+Backend:
+	•	Store with +91
+	•	Soft duplicate allowed (with warning log)
+
+	•	Current Address (Optional)
+	•	Min 20 characters
+
+	•	Permanent Address (Optional)
+	•	Min 20 characters
+	•	☑ Same as Current: if checked ‘Auto copy’
+Backend:
+	•	Store boolean is_current_same
+
+PRODUCT DETAILS – CONDITIONAL LOGIC
+	•	Product Category (Required)
+Fetch: GET /api/inventory/categories
+Selection triggers:
+	•	Load Product Types
+	•	Determine if vehicle section visible
+
+	•	Product Type (Required)
+Fetch: GET /api/inventory/products?category=3-Wheeler
+Must store:
+	•	Product_Type ids 
+	•	Multiselect as per Product category
+	•	Add 'Add Another Product' button to create multiple entries
+	•	Consider: Primary product (required) + Secondary products (optional)
+	•	If not in stock → show: “Order from OEM” suggestion
+
+	•	VEHICLE DETAILS (Conditional Block)
+	•	Visible only if:Product category = 3W/2W/4W
+
+	•	Vehicle Registration Number (Mandatory)
+	•	Auto uppercase’
+
+	•	Vehicle Ownership
+	•	vehicle_registration_number IS NOT NULL
+	•	if the user fills Vehicle Reg. Number 
+	•	Show validation: 'You've entered vehicle details
+	•	Automatically make dependent fields required:   • 
+	•	Vehicle Ownership (Required)
+	•	Owner Name (Required)
+	•	Owner Phone (Required)
+	•	Show asterisk (*) dynamically on these fields.
+	•	Add section heading: 'Existing Vehicle Information' (for context)
+Dropdown:
+	•	Self
+	•	Financed
+	•	Company
+	•	Leased
+	•	Family
+Conditional fields appear based on selection.
+
+	•	Owner Name 
+	•	Name format same as ‘Full Name’.
+	•	vehicle_registration_number IS NOT NULL
+	•	if user fills Vehicle Reg. Number:
+	•	Show validation: 'You've entered vehicle details'
+	•	Automatically make dependent fields required:
+	•	Vehicle Ownership (Required)
+	•	Owner Name (Required)
+	•	Owner Phone (Required)
+	•	Show asterisk (*) dynamically on these fields
+	•	Add section heading: 'Existing Vehicle Information' (for context)
+	•	Owner Phone
+	•	The phone format is the same as ‘Phone Number’.
+	•	vehicle_registration_number IS NOT NULL
+	•	if the user fills Vehicle Reg. Number:
+	•	Show validation: 
+	•	'You've entered vehicle details'
+	•	Automatically make dependent fields required:
+	•	Vehicle Ownership (Required)
+	•	Owner Name (Required)
+	•	Owner Phone (Required)
+	•	Show asterisk (*) dynamically on these fields
+	•	Add section heading: 'Existing Vehicle Information' (for context)
+LEAD CLASSIFICATION
+	•	Hot / Warm / Cold (Required)
+Frontend:
+	•	Toggle group
+	•	Must select one
+Backend: 	Stores:
+	•	interest_level: hot | warm | cold
+	•	lead_score: computed_value
+Suggested scoring:
+	•	Hot → 90
+	•	Warm → 60
+	•	Cold → 30
+Triggers:
+	•	Hot leads: 'Create Lead' saves Step 1 and auto-navigates to Step 2
+	•	Warm/Cold: 'Create Lead' saves and exits workflow
+BOTTOM BUTTONS – CORE LOGIC
+	•	Create Lead
+Purpose: Immediate save & exit workflow
+Frontend:
+	•	Validate all required fields
+	•	If errors → highlight
+	•	If valid → confirm modal:Create lead
+	•	On confirm:
+	•	Disable button
+	•	Show spinner
+	•	Call API
+Backend:
+	•	POST /api/leads/create
+Actions:
+	•	Server-side validation
+	•	Generate reference: #IT-[YEAR]-[SEQUENCE]
+	•	Set: status = INCOMPLETE workflow_step = 1
+	•	Save to leads table
+	•	Create activity log
+	•	Trigger notifications if HOT
+Response
+{success: true,
+  	leadId,
+  	referenceId}
+	•	After Success
+	•	Toast: Lead created
+	•	Redirect to: /leads/:id
+
+	•	Cancel
+Frontend:
+	•	If form untouched: → Go back
+	•	If modified:→ Show confirmation modal
+	•	On confirm:
+	•	Clear local state
+	•	Delete draft if exists:
+	•	DELETE /api/leads/draft/:sessionId
+	•	Redirect to dashboard
+STATE MANAGEMENT LOGIC
+During Step 1:
+	•	form_state = LOCAL
+	•	lead_state = DRAFT (optional)
+After Create Lead:
+	•	lead_status = INCOMPLETE
+	•	workflow_step = 1
+
+
+
+
+
+
+Button
+Frontend Action
+Backend Action
+State Change
+info
+Open modal
+None
+None
+Auto-fill
+Call autofill API
+Return data
+Populate form
+Create Lead
+Validate → POST
+Insert Lead
+incomplete
+Cancel
+Confirm → Navigate
+Delete draft (optional)
+Discard
+Error Handling
+For every API call and user action, specify:
+	•	Network errors: 'Connection lost. Please try again'
+	•	Validation errors: Field-specific error messages
+	•	Server errors (500): 'Something went wrong. Contact support'
+	•	Permission errors (403): 'You don't have permission'
+	•	Timeout errors: Retry mechanism with exponential backoff
+
+
+	
+
+
+
+
+Customer KYC – Step 2 of 5 (Hot Lead Only)_Button Schema	
+SCREEN ACCESS LOGIC
+Access Condition
+	•	User can access Step 2 only if:
+
+lead_created = true
+AND interest_level = 'hot'
+
+Backend Gatekeeper
+	•	GET /api/kyc/:leadId/access-check
+	•	If not allowed → redirect to the ‘Create Lead Page’
+
+PAYMENT METHOD
+	•	Payment Method Dropdown (Required)
+Options:
+	•	Upfront Full Payment
+	•	Finance / Loan (default)
+Frontend Logic
+On change:
+	•	If upfront Full Payment:
+	•	Hide Loan Documents
+	•	Hide Bank Statements
+	•	Hide Cheques
+	•	Required Docs = Basic KYC only
+	•	If finance/Loan:
+	•	Show full Loan Documents section
+	•	Required Docs = 11
+Backend:
+	•	PATCH /api/kyc/:leadId/payment-method
+Store:
+	•	payment_method = 'upfront' | 'finance'
+	•	loan_required = true/false
+Return:
+	•	requiredDocuments[]
+
+	•	DOCUMENT UPLOAD CARDS
+	•	(Only visible if payment_method = finance)
+	•	Uploader
+Common Upload Flow (All Document Cards)
+Frontend:
+	•	Click card
+	•	Open file picker
+	•	Validate type & size
+	•	Show progress
+	•	On success:
+	•	Green check
+	•	Thumbnail preview
+	•	Update count
+Backend:
+	•	POST /api/kyc/:leadId/upload-document
+Payload:
+	•	documentType: file
+Store:
+	•	File URL
+	•	Uploaded timestamp
+	•	Initial status = 'pending'
+DOCUMENT-SPECIFIC LOGIC
+Aadhaar Front & Back
+	•	Required
+	•	OCR extraction
+	•	Cross-match name & DOB using API as per ‘https://decentro.tech/resources/identity-verification
+	•	Cross-match address (Back) using API as per ‘https://decentro.tech/resources/identity-verification
+	•	Cross-match Father/Husband Name using API as per ‘https://decentro.tech/resources/identity-verification
+	•	Authenticate aadhar using API as per ‘https://decentro.tech/resources/identity-verification
+	•	aadhaar_verification_status:
+	•	pending → in_progress → success | failed
+	•	Fail Reason to be specified as per ‘https://decentro.tech/resources/identity-verification
+PAN Card
+	•	Required
+	•	Validate format
+	•	Cross-check name with Aadhaar and using API as per ‘https://decentro.tech/resources/identity-verification PAN
+	•	Cross-check DOB with Aadhaar and using API as per ‘https://decentro.tech/resources/identity-verification PAN
+	•	Cross-check Father/Husband name with Aadhaar and using API as per ‘https://decentro.tech/resources/identity-verification PAN
+	•	Authenticate PAN using API as per ‘https://decentro.tech/resources/identity-verification
+	•	PAN_verification_status:
+	•	pending → in_progress → success | failed
+	•	Fail Reason to be specified as per ‘https://decentro.tech/resources/identity-verification
+Passport Photo
+	•	Required
+	•	Face detection
+	•	Min resolution check
+	•	Cross-check photo with Adhaar using API as per ‘https://decentro.tech/resources/identity-verification
+	•	If mismatch > 20% → Status = failed
+	•	Photo Verification status:
+	•	pending → in_progress → success | failed
+	•	Fail Reason to be specified as per ‘https://decentro.tech/resources/identity-verification
+Address Proof
+	•	Required
+	•	Fuzzy match with Current address
+	•	<80% match → Status = failed
+	•	Address Verification status:
+	•	pending → in_progress → success | failed
+	•	Fail Reason → Address mismatch with updated permanent address
+RC Copy (Conditional)
+	•	Required only if: Asset Category = 3W/2W/4W and != Inverter
+	•	Verify authentication via VAHAN API using https://surepass.io/vahan-verification-api/
+	•	Cross-check reg number and Owner Name mentioned before
+	•	Authenticate RC using API as per https://surepass.io/vahan-verification-api/
+	•	RC_verification_status:
+	•	pending → in_progress → success | failed
+	•	Fail Reason to be specified as per https://surepass.io/vahan-verification-api/
+Bank Statement
+	•	Required
+	•	OCR to Read Beneficiary name, Account number, Bank, Branch, IFSC
+	•	All details to be stored in a table
+	•	Cross-check Beneficiary name with Customer Name
+	•	Use Penny drop verification to authenticate account https://decentro.tech/resources/penny-drop-verification-api
+	•	Bank Statement_verification_status:
+	•	pending → in_progress → success | failed
+	•	Fail Reason to be specified as per Beneficiary name mismatch and https://decentro.tech/resources/penny-drop-verification-api
+Undated Cheques (4 Required)
+Frontend:
+	•	4 slots mandatory
+	•	Show progress: 3/4
+Backend:
+	•	OCR account number
+	•	Ensure same account across cheques (Fail1)
+	•	Ensure account matches with uploaded Bank document (Fail2)
+	•	Bank Statement_verification_status:
+	•	pending → in_progress → success | failed
+	•	Fail Reason to be specified for 
+	•	Fail1: Different cheques uploaded, please upload cheques for same account
+	•	Bank statement and cheques are not matching
+ DOCUMENT STATUS COUNTER
+Status Display:
+	•	Documents Uploaded: 09/11 - Shows count of completed uploads
+	•	Documents Pending: PAN Card, Passport Size Photo - Lists missing docs in red text
+	•	Auto-updates as user uploads documents
+Backend Calculation:
+GET /api/kyc/:leadId/document-statusResponse: {  totalRequired: 11,  uploaded: 9,  pending: ['pan_card', 'passport_photo'],  allComplete: false}
+
+	•	CUSTOMER CONSENT
+
+Send SMS/WhatsApp Consent
+Frontend:
+	•	Click button:Send SMS/WhatsApp Consent
+	•	Disable ‘Generate Consent PDF’ and ‘upload signed consent PDF’
+	•	Validate: Customer phone number exists
+	•	Prepare Consent Form with prefilled details
+	•	Prepare consent form link to be sent on a registered mobile number
+	•	Show confirmation modal:   'Send consent form link to +91-XXXXX-XXXXX?
+	•	Show option to choose WhatsApp or SMS
+	•	Cancel button on all screen
+	•	On confirm:
+	•	Disable button
+	•	Show spinner
+	•	Call API
+	•	On success:
+	•	Show toast: 'Consent form sent to customer'
+	•	Update Consent Status: 'Link Sent - Awaiting Response'
+
+Backend:
+	•	POST /api/kyc/:leadId/send-consent
+	•	Validate: leadId exists, phone number valid
+	•	Generate consent document:
+	•	Header: Company logo, Consent form title
+	•	Body: Pre-filled customer details, loan terms, consent text
+	•	Footer: Signature fields (Customer, Aadhar OTP Verication ID, Date)
+	•	Generate unique consent link:   https://tarang.com/consent/{leadId}/{token}
+	•	Send SMS via Twilio or other preferred method:   'Complete your loan consent: {link}. Valid for 24 hours. -iTarang
+	•	Send WhatsApp message (if opted in)
+	•	Store in database:   consent_link_sent_at = CURRENT_TIMESTAMP   consent_token = generated_token   consent_status = 'link_sent'
+	•	7. Return: { success: true, sentAt: timestamp }
+
+
+
+
+
+Generate Consent PDF
+Frontend:
+	•	Click button: Generate Consent PDF
+	•	Disable ‘Send SMS/WhatsApp Consent’
+	•	Show loading spinner
+	•	Call API
+	•	On success:
+	•	Download PDF automatically
+	•	Show toast: 'Consent PDF downloaded'
+	•	Enable 'Upload signed consent PDF' button
+	•	Keep Cancel button to restart
+Backend:
+	•	POST /api/kyc/:leadId/generate-consent-pdf
+	•	Fetch lead data: Name, Father name, Address, Product details
+	•	Generate PDF using template:   
+	•	Header: Company logo, Consent form title
+	•	Body: Pre-filled customer details, loan terms, consent text
+	•	Footer: Signature fields (Customer, Witness, Date)
+	•	Store PDF temporarily: /temp/consent_{leadId}.pdf
+	•	Return: { success: true, pdfUrl: string, expiresIn: 3600 }PDF Template:
+	•	Library: pdfkit or puppeteer
+	•	Include: Consent text for credit check, loan agreement, data sharing
+	•	Signature boxes: Customer signature, Date, Witness signature, Customer Thumb Print
+Upload Signed Consent PDF Button
+Frontend:
+	•	Enabled only after 'Generate Consent PDF' is clicked
+	•	Click → Open file picker
+	•	Accepted: PDF only
+	•	Max size: 10MB
+	•	Show upload progress. 
+	•	On success:
+	•	Update Consent Status: 'Manual Consent Uploaded'
+	•	Show preview thumbnail
+	•	Mark as asterisk (*) required field fulfilled
+Backend:
+	•	POST /api/kyc/:leadId/upload-signed-consent
+	•	Payload: FormData { file: File }
+	•	Validate: PDF format, size <10MB
+	•	Upload to S3: /kyc/{leadId}/signed_consent.pdf
+	•	Store URL: signed_consent_url
+	•	Update: consent_status = 'manual_uploaded'
+	•	Create verification task for admin: 'Review manual consent'
+	•	Return: { success: true, fileUrl: string }
+Consent Status Display
+Status Values:
+	•	'Awaiting digital Signature' - Default state, no action taken
+	•	'Link Sent - Awaiting Response' - SMS/WhatsApp sent, waiting for customer
+	•	'Digitally Signed' - Customer completed e-signature
+	•	'Manual Consent Uploaded' - Offline signed PDF uploaded
+	•	'Verified' - Admin approved the consent
+
+	•	VERIFICATION ACTION
+
+Coupon Code Field
+Frontend:
+	•	Text input field
+	•	Placeholder: 'Enter verification coupon code'
+	•	Max length: 20 characters
+	•	Alphanumeric only
+	•	Required
+
+Backend:
+	•	Validates coupon code against dealer specific assigned coupon codes API
+	•	If valid: strike off and enable verification
+	•	If invalid: Show error 'Invalid coupon code'
+	•	Store: coupon_code, coupon_applied_at, coupon_status change to used
+
+Validate Button
+Frontend:
+	•	Check if coupon code entered
+	•	If empty: Show error 'Please enter coupon code’
+	•	If filled:
+	•	Disable button
+	•	show spinner
+	•	Call validation API
+	•	On success:
+	•	Show toast: 'Coupon validated
+	•	Enable 'Submit for Verification' button
+	•	On failure:
+	•	Show error: 'Invalid coupon or expired'
+	•	Keep 'Submit for Verification' disabled
+Backend:
+	•	POST /api/kyc/validate-coupon
+	•	Payload: { couponCode: string }
+	•	Call  API: Verify coupon
+	•	If valid: Store coupon_available
+	•	Mark coupon as validated
+	•	Return: { valid: boolean, creditsAvailable: number, message: string }
+Submit for Verification Button
+Trigger automated verification of Aadhaar, PAN, Bank via third-party APIs, Trigger Fetch API for CIBIL via Third Party Verification API
+
+At the validation screen iTarang team can ask for other documents and those document requirements will be reflected in the Other Documents & Co-Borrower KYC Screen (Interim Step).
+
+Frontend:
+	•	Pre-check:
+	•	All required documents uploaded? (11/11)
+	•	If not complete:
+	•	Show error: 'Please upload all required documents'
+	•	Highlight missing documents in red
+	•	If complete:
+	•	Show confirmation modal:'Submit documents for verification? 
+	•	On confirm:
+	•	Disable button, show spinner
+	•	Call verification API
+	•	On success:
+	•	Show toast: 'Verification initiated. Check the status below.'
+	•	Scroll to 'Verification Status' table
+	•	Auto-refresh status every 30 seconds
+	•	Send all the attachments and customer details for manual validation by iTarang internal team (Internal validation Dashboard connected to lead ID)
+	•	On failure:
+	•	Show error message
+	•	Re-upload button
+
+Backend:
+	•	POST /api/kyc/:leadId/submit-verification
+	•	Validate:
+	•	All required docs uploaded 
+	•	Extract data from uploaded documents (OCR)
+	•	Call third-party APIs sequentially:
+	•	Aadhaar Verification:
+	•	API: DigiLocker or UIDAI API
+	•	Verify: Aadhaar number, Name, DOB, Address, Father/Husband Name
+	•	Update: aadhaar_verification_status = 'in_progress'
+	•	 PAN Verification:
+	•	API: PAN Verification
+	•	Verify: PAN number, Name
+	•	Cross-check name with Aadhaar
+	•	Update: pan_verification_status = 'in_progress'
+	•	Bank Verification:
+	•	API: Penny drop or Bank statement parser
+	•	Verify: Account number, IFSC, Name
+	•	Update: bank_verification_status = 'in_progress'
+	•	Address Verification:
+	•	Compare: Aadhaar address vs Address proof
+	•	Fuzzy match score
+	•	Update: address_verification_status = 'in_progress'
+	•	RC Verification (if applicable):
+	•	API: VAHAN API
+	•	Verify: Registration number, Owner name
+	•	Update: rc_verification_status = 'in_progress' 
+	•	Mobile Number Verification:
+	•	Send OTP to customer phone
+	•	Update: mobile_verification_status = 'awaiting_action'
+	•	Store verification_submitted_at = CURRENT_TIMESTAMP
+	•	Create webhook listeners for async API responses.
+	•	Return: { success: true, verificationsInitiated: 6, estimatedTime: '2-5 minutes' }
+	•	Disable upload/edit for that section until the admin responds.
+
+	•	Verification Status (Co-borrower) Table
+Real-time display of document verification status from third-party APIs
+Table Structure
+Columns:
+	•	Check - Verification type (Aadhaar, PAN, Bank, etc.)
+	•	Status - Current verification state (badge/pill)
+	•	Last Update - Timestamp of last status change
+	•	Action - Re-upload button for failed verifications
+	•	Failed Reason - Error message if verification failed
+Status Values & Visual Indicators
+• System initiating data fetch: Orange badge - Verification API called, waiting for response
+• Awaiting action: Gray badge - Waiting for user action (e.g., OTP entry)
+• Success: Green badge - Verification passed successfully
+• Failed: Red badge - Verification failed - see reason
+• Pending: Yellow badge - Verification in queue or processing
+Individual Verification Rows
+Aadhaar Verification
+	•	Status: System initiating data fetch
+	•	Last Update: 2024-07-26 10:30 AM
+	•	Action: Re-upload
+	•	Failed Reason:
+Technical Details:
+Frontend:
+	•	Auto-updates via WebSocket or polling (every 10 sec)
+	•	Shows spinner during 'initiating' state
+Backend:
+	•	Calls DigiLocker/UIDAI API/Decentro API
+	•	Validates: Aadhaar number format, Name match, DOB match
+	•	Updates status based on API response
+	•	Possible outcomes: Success, Failed (name mismatch), Failed (invalid Aadhaar)
+PAN Verification
+	•	Status: Awaiting action
+	•	Last Update: 2024-07-26 10:45 AM
+	•	Action: Re-upload
+	•	Failed Reason:
+Technical Details:
+Frontend:
+	•	Gray badge indicates waiting state
+	•	May require OTP or additional step
+Backend:
+	•	Calls Income Tax API or NSDL/Decentro API
+	•	Validates: PAN format, Name match with Aadhaar
+	•	If name mismatch:
+	•	Set status = Failed, reason = 'Name mismatch'
+	•	If inactive PAN:
+	•	Set status = Failed, reason = 'PAN inactive or invalid'
+Bank Verification
+	•	Status: Awaiting action
+	•	Last Update: 2024-07-26 10:45 AM
+	•	Action: Re-upload
+	•	Failed Reason:
+Technical Details:
+Frontend:
+	•	May show 'Verify with Penny Drop' button
+	•	Customer enters: Account number, IFSC code
+Backend:
+	•	Penny drop test: Deposit ₹1, verify account active
+	•	parse bank statement for account details
+	•	Validates: Account holder name matches customer name
+	•	Checks: Account active, not frozen
+Address Proof
+	•	Status: Failed
+	•	Last Update: 2024-07-26 10:45 AM
+	•	Action: Re-upload
+	•	Failed Reason: Address is not match
+Technical Details:
+Frontend:
+	•	Red badge, Failed reason shown• 
+	•	‘Re-upload' button enabled
+	•	On click: Opens file picker to upload new address proofBackend:
+	•	Fuzzy match: Aadhaar address vs Address proof address• 
+	•	If similarity <70%: Mark as Failed
+	•	Reason: 'Address mismatch. Please upload correct proof.'
+	•	Re-upload triggers new verification cycle
+RC Verification
+	•	Status: Failed
+	•	Last Update: 2024-07-26 10:45 AM
+	•	Action: Re-upload
+	•	Failed Reason: Image Blur
+Technical Details:
+Frontend:
+	•	Failed due to poor image quality
+	•	'Re-upload' button enabledBackend:
+	•	OCR quality check: Image clarity score
+	•	If score <60%: Mark as Failed, reason = 'Image blur or low quality'
+	•	Calls VAHAN API to verify RC number
+	•	Cross-checks: Owner name, Vehicle model
+Mobile Number
+	•	Status: Success
+	•	Last Update: 2024-07-26 10:45 AM
+	•	Action: Re-upload
+	•	Failed Reason:
+Technical Details:
+Frontend:
+	•	Green badge, verification complete
+	•	OTP sent and verifiedBackend:
+	•	Sends OTP to customer's mobile
+	•	Customer enters OTP in modal/popup
+	•	Validates OTP within 5 minutes
+	•	On success: Mark as Success
+	•	On failure: Failed Reason
+
+Re-upload Button Functionality
+Frontend Workflow:
+	•	Enabled only for 'Failed' status rows
+	•	Click → Open file picker (specific to document type)
+	•	Upload new document
+	•	On success:
+	•	Reset status to 'Awaiting action'
+	•	Clear 'Failed Reason'
+	•	Show toast: 'Document re-uploaded
+	•	Verification will restart.'
+	•	Auto-trigger verification for that specific document
+Backend:
+	•	POST /api/kyc/:leadId/re-upload
+	•	Payload: { verificationType: 'aadhaar|pan|bank|etc', file: File }
+	•	Delete old file from storage
+	•	Upload new file
+	•	Update: document_url, verification_status = 'awaiting_action'
+	•	Re-trigger specific verification API
+	•	Update: last_update = CURRENT_TIMESTAMP
+	•	Return: { success: true, newStatus: 'awaiting_action' }
+
+Consent Status Display (Top Right)
+Current Display: 'Consent Status: Success' (Green badge)
+This indicates the customer has completed consent (digital or manual).
+Backend Logic:
+	•	If consent_status = 'digitally_signed' OR 'manual_uploaded': Show 'Success'
+	•	If consent_status = 'link_sent': Show 'Pending'
+	•	If consent_status = 'awaiting_signature': Show 'Not Started'
+
+Admin Review Outcomes
+When iTarang reviews the documents, they have three simple outcomes per document:
+	•	Verified
+	•	Rejected – Need better clarity
+	•	Request additional document (adds new doc type to list)
+Frontend converts these into UI:
+	•	Verified → Green tick
+	•	Rejected → Red label with reason
+	•	New doc request → New tile appears
+
+	•	Bottom Action Buttons
+Back Button
+
+Frontend:
+	•	Check if any data is modified on current page
+	•	If modified:
+	•	Show confirmation: 'You have unsaved changes. Go back?'
+	•	Options: 'Save Draft & Go Back' / 'Discard & Go Back' / 'Cancel'
+	•	If 'Save Draft':
+	•	Call save draft API
+	•	Save the draft
+	•	If 'Discard':
+	•	Clear form state.
+	•	Navigate to last saved form/draft
+	•	If draft save: PATCH /api/kyc/:leadId/draft { step: 2, data: {...} }
+
+
+Save Draft Button
+Frontend Workflow:
+	•	Collect all form data:
+	•	Payment method
+	•	Uploaded documents (URLs)
+	•	Verification statuses
+	•	Consent status
+	•	Other documents
+	•	Show loading spinner on button
+	•	Call save draft API
+	•	On success:
+	•	Show toast: 'Draft saved successfully'
+	•	Update 'Last updated' timestamp
+	•	Keep user on the same page
+	•	On failure:
+	•	Show error: 'Failed to save draft. Please try again.
+Backend:
+	•	PATCH /api/kyc/:leadId/save-draft
+	•	Payload: { step: 2, data: { paymentMethod, documents: {...}, verificationStatus: {...}, consent: {...} } }
+	•	Update database:   kyc_draft_data = JSON payload   draft_saved_at = CURRENT_TIMESTAMP   workflow_step = 2   kyc_status = 'draft'
+	•	Return: { success: true, savedAt: timestamp }Auto-save:
+	•	Trigger auto-save every 2 minutes if user idle
+	•	Show subtle indicator: 'Auto-saved at HH:MM'
+Save & Next Button (Conditional)
+Condition: iTarant internal team has validated the document, all APIs has shown success or iTarang team has requested for other documents or iTarang team has requested for Co-Borrower details
+
+Frontend Workflow:
+	•	Validation checks:
+	•	✓ Payment method selected
+	•	✓ All required documents uploaded (11/11 if Finance, 3/11 if Upfront)
+	•	✓ Consent obtained (Status = Success)
+	•	✓ No critical verification failures
+	•	✓ Internal validation success or Internal validation requested for other documentation and/or co-borrower information
+	•	If validation fails:
+	•	Show error modal with checklist: 
+	•	❌ Missing: PAN Card upload ❌ Aadhaar verification failed     ✓ Consent obtained   
+	•	Highlight incomplete sections in red
+	•	Scroll to first error
+	•	Keep on same page
+	•	If validation passes and no other documents and/or co-borrower information required:
+	•	Show confirmation: 'KYC data is complete. Proceed to Product Selection?'  
+	•	On confirm:
+	•	Disable button, show spinner
+	•	Call save API
+	•	On success: Navigate to Step 3
+	•	On failure: Show error, re-enable button
+	•	If validation passes and other documents and/or co-borrower information required:
+	•	Show confirmation: 'Other Documentation is required. Proceed to Next Page Selection?'  
+	•	On confirm:
+	•	Disable button, show spinner
+	•	Call save API
+	•	On success: Navigate to Interim Step
+	•	On failure: Show error, re-enable button
+Backend:
+	•	POST /api/kyc/:leadId/complete-and-next
+	•	Server-side validation:
+	•	Check: All required documents uploaded
+	•	Check: Consent status = 'digitally_signed' OR 'manual_uploaded'
+	•	If validation fails:
+	•	 Return: { success: false, errors: [...], missingItems: [...] }
+	•	If validation passes:
+	•	Update lead status: kyc_status = 'completed' kyc_completed_at = CURRENT_TIMESTAMP workflow_step = 3 
+	•	Calculate KYC score: kyc_score = (        (documents_uploaded / total_required) * 40 + (verifications_passed / total_verifications) * 40 +        (consent_obtained ? 20 : 0) )
+	•	Store final KYC data:  kyc_data = JSON { paymentMethod, documents, verifications, consent } 
+	•	Create activity log: 'KYC completed for Lead #{leadId}' 
+	•	Trigger notifications: 
+	•	Email to dealer: 'KYC approved for {customer_name}' 
+	•	SMS to customer: 'Your KYC is verified. Next: Select product.'
+	•	Return: { success: true, nextStep: 3, kycScore: 95, message: 'KYC completed successfully' }
+	•	Frontend receives success:
+	•	Show success toast: 'KYC completed! Proceeding to product selection...' 
+	•	Navigate to: /leads/:leadId/product-selection (Step 3)
+	•	Update progress bar: Step 3 of 5
+
+
+
+
+
+
+
+Other Documents & Co-Borrower KYC – Interim Step (Only If required by internal validation)_Button Schema
+ACCESS LOGIC
+This screen appears only if:
+lead.has_additional_docs_required = true
+OR
+lead.has_co_borrower = true
+Backend gatekeeper:
+GET /api/kyc/:leadId/interim-access-check
+If false → redirect to Step 3 accordingly.
+
+	•	CO-BORROWER / GUARANTOR INFORMATION
+Visible only when:
+lead.has_co_borrower = true
+Fields (8 total)
+	•	Full Name
+	•	Father/Husband Name
+	•	Date of Birth
+	•	Phone
+	•	Permanent Address
+	•	Current Address (+ checkbox “Same as permanent”)
+	•	PAN
+	•	Aadhaar
+Validation
+	•	Same as primary applicant KYC
+	•	Age ≥ 18
+	•	Co-borrower phone ≠ applicant phone
+Auto-Fill from ID
+Frontend
+	•	Click → Open ‘Auto fill customer details pop up’ modal
+	•	User click:
+	•	Aadhaar Front: To upload image in png, jpeg and PDF 
+	•	Aadhaar Back: To upload image in png,jpeg and PDF
+	•	Start scanning: CALL API initiate OCR API, Both the uploaded images run through OCR and extract Name, Husband/Father Name, Date of Birth, Current Address
+	•	Validation:
+	•	Add File Size & Format Validation
+	•	Max file size: 5MB per image
+	•	Allowed formats: PNG, JPEG, PDF
+	•	Image quality check (min 300 DPI recommended)
+	•	Show upload progress bar
+	•	OCR Error Handling
+	•	What if OCR fails to extract data?
+	•	Show error message: 'Could not read document. Please ensure image is clear'
+	•	Allow manual entry fallback
+	•	Retry option
+	•	Support for poor quality scans
+Backend
+POST /api/leads/autofillRequest: { idType: 'aadhaar|pan|customer|lead', idValue: 'string' }Response: { success: boolean, data: { fullName, fatherName, dob, address, phone, etc. }, message: string }
+State Update
+	•	Overwrites matching fields
+	•	Marks form as “Auto-filled”
+	•	Logs audit event
+
+
+
+
+CO-BORROWER DOCUMENT UPLOAD (4 Required)
+
+Document tiles (same as customer KYC):
+	•	Aadhaar Front
+	•	 Required
+	•	Aadhaar Back
+	•	Required
+	•	PAN Card
+	•	Required
+	•	Passport Photo
+	•	Required
+	•	Address Proof
+	•	Optional
+	•	Bank Statement
+	•	Optional
+	•	7–10. 4× Undated Cheques
+	•	RC Copy (only if vehicle category is 2W/3W/4W) 
+	•	Optional
+Upload Flow
+Frontend:
+	•	Click tile → choose file
+	•	Validate size/type
+	•	Show upload progress
+	•	Show green tick on success
+Backend: POST /api/coborrower/:leadId/upload-document
+Stores: url, doc_type, uploaded_at, status="pending"
+Document Status Counter
+API: GET /api/coborrower/:leadId/document-status
+Displays:
+	•	“Documents Uploaded: X/11”
+	•	Pending list (e.g., PAN, Passport)
+Progress bar → Success: Change to green checkmarkPENDING ALERT:Shows: 'Documents Pending: PAN Card, Passport Size Photo' in red/orange text
+	•	CO-BORROWER CONSENT
+Send SMS/WhatsApp Consent
+Frontend:
+	•	Click button:Send SMS/WhatsApp Consent
+	•	Disable ‘Generate Consent PDF’ and ‘upload signed consent PDF’
+	•	Validate: Customer phone number exists
+	•	Prepare Consent Form with prefilled details
+	•	Prepare consent form link to be sent on a registered mobile number
+	•	Show confirmation modal:   'Send consent form link to +91-XXXXX-XXXXX?
+	•	Show option to choose WhatsApp or SMS
+	•	Cancel button on all screen
+	•	On confirm:
+	•	Disable button
+	•	Show spinner
+	•	Call API
+	•	On success:
+	•	Show toast: 'Consent form sent to customer'
+	•	Update Consent Status: 'Link Sent - Awaiting Response'
+
+Backend:
+	•	POST /api/coborrower/:leadId/send-consent
+	•	Validate: leadId exists, phone number valid
+	•	Generate consent document:
+	•	Header: Company logo, Consent form title
+	•	Body: Pre-filled customer details, loan terms, consent text
+	•	Footer: Signature fields (Customer, Aadhar OTP Verication ID, Date)
+	•	Generate unique consent link:   https://tarang.com/coborrowerconsent/{leadId}/{token}
+	•	Send SMS via Twilio or other preferred method:   'Complete your loan consent: {link}. Valid for 24 hours. -iTarang
+	•	Send WhatsApp message (if opted in)
+	•	Store in database:   consent_link_sent_at = CURRENT_TIMESTAMP   consent_token = generated_token   consent_status = 'link_sent'
+	•	7. Return: { success: true, sentAt: timestamp }
+
+
+
+
+
+Generate Consent PDF
+Frontend:
+	•	Click button: Generate Consent PDF
+	•	Disable ‘Send SMS/WhatsApp Consent’
+	•	Show loading spinner
+	•	Call API
+	•	On success:
+	•	Download PDF automatically
+	•	Show toast: 'Consent PDF downloaded'
+	•	Enable 'Upload signed consent PDF' button
+	•	Keep Cancel button to restart
+Backend:
+	•	POST /api/coborrower/:leadId/generate-consent-pdf
+	•	Fetch lead data: Name, Father name, Address, Product details
+	•	Generate PDF using template:   
+	•	Header: Company logo, Consent form title
+	•	Body: Pre-filled customer details, loan terms, consent text
+	•	Footer: Signature fields (Customer, Witness, Date)
+	•	Store PDF temporarily: /temp/consent_{leadId}.pdf
+	•	Return: { success: true, pdfUrl: string, expiresIn: 3600 }PDF Template:
+	•	Library: pdfkit or puppeteer
+	•	Include: Consent text for credit check, loan agreement, data sharing
+	•	Signature boxes: Customer signature, Date, Witness signature, Customer Thumb Print
+Upload Signed Consent PDF Button
+Frontend:
+	•	Enabled only after 'Generate Consent PDF' is clicked
+	•	Click → Open file picker
+	•	Accepted: PDF only
+	•	Max size: 10MB
+	•	Show upload progress. 
+	•	On success:
+	•	Update Consent Status: 'Manual Consent Uploaded'
+	•	Show preview thumbnail
+	•	Mark as asterisk (*) required field fulfilled
+Backend:
+	•	POST /api/coborrower/:leadId/upload-signed-consent
+	•	Payload: FormData { file: File }
+	•	Validate: PDF format, size <10MB
+	•	Upload to S3: /kyc/{leadId}/signed_consent.pdf
+	•	Store URL: signed_consent_url
+	•	Update: consent_status = 'manual_uploaded'
+	•	Create verification task for admin: 'Review manual consent'
+	•	Return: { success: true, fileUrl: string }
+Consent Status Display
+Status Values:
+	•	'Awaiting digital Signature' - Default state, no action taken
+	•	'Link Sent - Awaiting Response' - SMS/WhatsApp sent, waiting for customer
+	•	'Digitally Signed' - Customer completed e-signature
+	•	'Manual Consent Uploaded' - Offline signed PDF uploaded
+	•	'Verified' - Admin approved the consent
+
+	•	VERIFICATION ACTION
+
+Coupon Code Field
+Frontend:
+	•	Text input field
+	•	Placeholder: 'Enter verification coupon code'
+	•	Max length: 20 characters
+	•	Alphanumeric only
+	•	Required
+
+Backend:
+	•	Validates coupon code against dealer specific assigned coupon codes API
+	•	If valid: strike off and enable verification
+	•	If invalid: Show error 'Invalid coupon code'
+	•	Store: coupon_code, coupon_applied_at, coupon_status change to used
+
+Validate Button
+Frontend:
+	•	Check if coupon code entered
+	•	If empty: Show error 'Please enter coupon code’
+	•	If filled:
+	•	Disable button
+	•	show spinner
+	•	Call validation API
+	•	On success:
+	•	Show toast: 'Coupon validated
+	•	Enable 'Submit for Verification' button
+	•	On failure:
+	•	Show error: 'Invalid coupon or expired'
+	•	Keep 'Submit for Verification' disabled
+Backend:
+	•	POST /api/kyc/validate-coupon
+	•	Payload: { couponCode: string }
+	•	Call  API: Verify coupon
+	•	If valid: Store coupon_available
+	•	Mark coupon as validated
+	•	Return: { valid: boolean, creditsAvailable: number, message: string }
+Submit for Verification Button
+Trigger automated verification of Aadhaar, PAN, Bank via third-party APIs
+
+Frontend:
+	•	Pre-check:
+	•	All required documents uploaded? (4/4)
+	•	If not complete:
+	•	Show error: 'Please upload all required documents'
+	•	Highlight missing documents in red
+	•	If complete:
+	•	Show confirmation modal:'Submit documents for verification? 
+	•	On confirm:
+	•	Disable button, show spinner
+	•	Call verification API
+	•	On success:
+	•	Show toast: 'Verification initiated. Check the status below.'
+	•	Scroll to 'Verification Status' table
+	•	Auto-refresh status every 30 seconds
+	•	Send all the attachments and customer details for manual validation by iTarang internal team (Internal validation Dashboard connected to lead ID)
+	•	On failure:
+	•	Show error message
+	•	Re-upload button
+
+Backend:
+	•	POST /api/coborrower/:leadId/submit-verification
+	•	Validate:
+	•	All required docs uploaded 
+	•	Extract data from uploaded documents (OCR)
+	•	Call third-party APIs sequentially:
+	•	Aadhaar Verification:
+	•	API: DigiLocker or UIDAI API
+	•	Verify: Aadhaar number, Name, DOB, Address, Father/Husband Name
+	•	Update: aadhaar_verification_status = 'in_progress'
+	•	 PAN Verification:
+	•	API: PAN Verification
+	•	Verify: PAN number, Name
+	•	Cross-check name with Aadhaar
+	•	Update: pan_verification_status = 'in_progress'
+	•	Bank Verification:
+	•	API: Penny drop or Bank statement parser
+	•	Verify: Account number, IFSC, Name
+	•	Update: bank_verification_status = 'in_progress'
+	•	Address Verification:
+	•	Compare: Aadhaar address vs Address proof
+	•	Fuzzy match score
+	•	Update: address_verification_status = 'in_progress'
+	•	RC Verification (if applicable):
+	•	API: VAHAN API
+	•	Verify: Registration number, Owner name
+	•	Update: rc_verification_status = 'in_progress' 
+	•	Mobile Number Verification:
+	•	Send OTP to customer phone
+	•	Update: mobile_verification_status = 'awaiting_action'
+	•	Store verification_submitted_at = CURRENT_TIMESTAMP
+	•	Create webhook listeners for async API responses.
+	•	Return: { success: true, verificationsInitiated: 6, estimatedTime: '2-5 minutes' }
+	•	Disable upload/edit for that section until the admin responds.
+	•	Verification Status (Co-borrower) Table
+Real-time display of document verification status from third-party APIs. Table structure is dynamic, as per uploaded documents.
+Table Structure
+Columns:
+	•	Check - Verification type (Aadhaar, PAN, Bank, etc.)
+	•	Status - Current verification state (badge/pill)
+	•	Last Update - Timestamp of last status change
+	•	Action - Re-upload button for failed verifications
+	•	Failed Reason - Error message if verification failed
+Status Values & Visual Indicators
+• System initiating data fetch: Orange badge - Verification API called, waiting for response
+• Awaiting action: Gray badge - Waiting for user action (e.g., OTP entry)
+• Success: Green badge - Verification passed successfully
+• Failed: Red badge - Verification failed - see reason
+• Pending: Yellow badge - Verification in queue or processing
+Individual Verification Rows
+Aadhaar Verification
+	•	Status: System initiating data fetch
+	•	Last Update: 2024-07-26 10:30 AM
+	•	Action: Re-upload
+	•	Failed Reason:
+Technical Details:
+Frontend:
+	•	Auto-updates via WebSocket or polling (every 10 sec)
+	•	Shows spinner during 'initiating' state
+Backend:
+	•	Calls DigiLocker/UIDAI API/Decentro API
+	•	Validates: Aadhaar number format, Name match, DOB match
+	•	Updates status based on API response
+	•	Possible outcomes: Success, Failed (name mismatch), Failed (invalid Aadhaar)
+PAN Verification
+	•	Status: Awaiting action
+	•	Last Update: 2024-07-26 10:45 AM
+	•	Action: Re-upload
+	•	Failed Reason:
+Technical Details:
+Frontend:
+	•	Gray badge indicates waiting state
+	•	May require OTP or additional step
+Backend:
+	•	Calls Income Tax API or NSDL/Decentro API
+	•	Validates: PAN format, Name match with Aadhaar
+	•	If name mismatch:
+	•	Set status = Failed, reason = 'Name mismatch'
+	•	If inactive PAN:
+	•	Set status = Failed, reason = 'PAN inactive or invalid'
+Bank Verification
+	•	Status: Awaiting action
+	•	Last Update: 2024-07-26 10:45 AM
+	•	Action: Re-upload
+	•	Failed Reason:
+Technical Details:
+Frontend:
+	•	May show 'Verify with Penny Drop' button
+	•	Customer enters: Account number, IFSC code
+Backend:
+	•	Penny drop test: Deposit ₹1, verify account active
+	•	parse bank statement for account details
+	•	Validates: Account holder name matches customer name
+	•	Checks: Account active, not frozen
+Address Proof
+	•	Status: Failed
+	•	Last Update: 2024-07-26 10:45 AM
+	•	Action: Re-upload
+	•	Failed Reason: Address is not match
+Technical Details:
+Frontend:
+	•	Red badge, Failed reason shown• 
+	•	‘Re-upload' button enabled
+	•	On click: Opens file picker to upload new address proofBackend:
+	•	Fuzzy match: Aadhaar address vs Address proof address• 
+	•	If similarity <70%: Mark as Failed
+	•	Reason: 'Address mismatch. Please upload correct proof.'
+	•	Re-upload triggers new verification cycle
+RC Verification
+	•	Status: Failed
+	•	Last Update: 2024-07-26 10:45 AM
+	•	Action: Re-upload
+	•	Failed Reason: Image Blur
+Technical Details:
+Frontend:
+	•	Failed due to poor image quality
+	•	'Re-upload' button enabledBackend:
+	•	OCR quality check: Image clarity score
+	•	If score <60%: Mark as Failed, reason = 'Image blur or low quality'
+	•	Calls VAHAN API to verify RC number
+	•	Cross-checks: Owner name, Vehicle model
+Mobile Number
+	•	Status: Success
+	•	Last Update: 2024-07-26 10:45 AM
+	•	Action: Re-upload
+	•	Failed Reason:
+Technical Details:
+Frontend:
+	•	Green badge, verification complete
+	•	OTP sent and verifiedBackend:
+	•	Sends OTP to customer's mobile
+	•	Customer enters OTP in modal/popup
+	•	Validates OTP within 5 minutes
+	•	On success: Mark as Success
+	•	On failure: Failed Reason
+
+Re-upload Button Functionality
+Frontend Workflow:
+	•	Enabled only for 'Failed' status rows
+	•	Click → Open file picker (specific to document type)
+	•	Upload new document
+	•	On success:
+	•	Reset status to 'Awaiting action'
+	•	Clear 'Failed Reason'
+	•	Show toast: 'Document re-uploaded
+	•	Verification will restart.'
+	•	Auto-trigger verification for that specific document
+Backend:
+	•	POST /api/coborrower/:leadId/re-verify
+	•	Payload: { verificationType: 'aadhaar|pan|bank|etc', file: File }
+	•	Delete old file from storage
+	•	Upload new file
+	•	Update: document_url, verification_status = 'awaiting_action'
+	•	Re-trigger specific verification API
+	•	Update: last_update = CURRENT_TIMESTAMP
+	•	Return: { success: true, newStatus: 'awaiting_action' }
+
+Consent Status Display (Top Right)
+Current Display: 'Consent Status: Success' (Green badge)
+This indicates the customer has completed consent (digital or manual).
+Backend Logic:
+	•	If consent_status = 'digitally_signed' OR 'manual_uploaded': Show 'Success'
+	•	If consent_status = 'link_sent': Show 'Pending'
+	•	If consent_status = 'awaiting_signature': Show 'Not Started'
+
+Other Documentation Upload (Dynamic Requests)
+Appears only if iTarang team requested additional documents:
+Backend returns a list: GET /api/coborrower/:leadId/required-other-docs
+required_other_docs: [
+   { id: 'rent_agreement', label: 'Rent Agreement', required: true },
+   { id: 'owner_verification', label: 'Owner Verification', required: true }
+]
+Frontend (Step 3) will automatically:
+	•	Show the “Other Documentation” section only if this list > 0.
+	•	Display each required document as a separate tile with (dynamic tile):
+	•	Label
+	•	Upload button
+	•	Status indicator (Not Uploaded / Uploaded / Rejected / Verified)
+Uploading Other Doc(Simple Rule)
+Each dynamic tile works like this:
+Frontend:
+	•	Click tile → Upload file
+	•	Validate file
+	•	Show thumbnail
+	•	Update status to: uploaded
+Backend:
+POST /api/coborrower/:leadId/upload-other-document
+Store:
+	•	file_url
+	•	doc_type
+	•	uploaded_at
+	•	status = 'uploaded'
+iTarang can also suggest for co-borrower information, if itarang selects co-borrower information, the next Section will be visible.
+
+Submit for Verification Button
+Frontend:
+	•	Check: All required documents are uploaded in 'Other Documentation'
+	•	If less: Show error 'Please upload all documents'
+	•	If uploaded:
+	•	Show confirmation: 'Submit documents for review?'
+	•	On confirm: Call API4. 
+	•	On success:
+	•	Show toast: 'Documents submitted for review'
+	•	Disable further uploads until reviewed
+Backend:
+	•	POST /api/coborrower/:leadId/submit-other-docs-review
+	•	Mark: other_docs_status = 'pending_review'
+	•	Create admin task: 'Review other documents for Lead #{leadId}'
+	•	Notify admin via email and dashboard
+	•	Return: { success: true, reviewStatus: 'pending' }
+	•	Admin verifies all the attached documents, if approved
+	•	Return: { reviewStatus: 'Verified' }
+	•	If Rejected
+	•	Return: { reviewStatus: ‘Rejected’, RejectedReason: ’as per admin comments’ }
+Admin Review Outcomes
+When iTarang reviews the documents, they have three simple outcomes per document:
+	•	Verified
+	•	Rejected – Need better clarity
+	•	Request additional document (adds new doc type to list)
+Frontend converts these into UI:
+	•	Verified → Green tick
+	•	Rejected → Red label with reason
+	•	New doc request → New tile appears
+
+	•	BOTTOM ACTION BUTTONS
+Back
+If data changed:
+	•	Save Draft & Go Back
+	•	Discard & Go Back
+	•	Cancel
+Save Draft
+Saves full interim step state.
+Backend: PATCH /api/coborrower/:leadId/save-draft
+Stores:
+	•	co-borrower info
+	•	uploaded docs
+	•	consent status
+	•	verification status
+	•	other documents
+	•	Draft_saved_at
+Auto-save every 2 minutes.
+Preview Customer Profile (Primary Action)
+This is the continue button for the interim step.
+Pre-check:
+✓ Co-borrower flow completed (if required)
+✓ Other documents uploaded (if required)
+✓ No pending verification failures
+✓ Consent complete
+If OK → proceed to preview.
+Backend: POST /api/coborrower/:leadId/complete-and-preview
+Updates:
+	•	interim_step_status = "completed”
+	•	workflow_step = 3
+Redirect: /leads/:leadId/profile-preview
+END-TO-END INTERIM FLOW SUMMARY
+	•	Screen loads after automated KYC if additional checks needed
+	•	User fills co-borrower info (if required)
+	•	Uploads co-borrower’s 11 KYC docs
+	•	Completes consent (digital or manual)
+	•	Submits for automated verification
+	•	Fixes failures (Edit → re-upload)
+	•	Uploads additional documents requested by internal team
+	•	Submits other docs for review
+	•	Saves draft anytime
+	•	Clicks Preview Customer Profile → moves to next step
+
+
+
+

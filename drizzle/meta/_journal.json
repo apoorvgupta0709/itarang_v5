@@ -15,6 +15,27 @@
       "when": 1771198592739,
       "tag": "0001_odd_the_liberteens",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1771665465950,
+      "tag": "0002_safe_storm",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1771897852754,
+      "tag": "0003_add_lead_reference_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1771898160117,
+      "tag": "0004_add_loan_kyc_tables",
+      "breakpoints": true
     }
   ]
 }

@@ -15,8 +15,45 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
     const { id: leadId } = await params;
     const user = await requireAuth();
 
-    // Fetch Lead
-    const [lead] = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
+    // Fetch Lead with Error Boundary
+    let lead;
+    try {
+        const result = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
+        lead = result[0];
+    } catch (err: any) {
+        if (err?.code === '42703' || err?.message?.includes('does not exist')) {
+            return (
+                <div className="max-w-4xl mx-auto py-8 px-4">
+                    <Link href="/leads">
+                        <Button variant="ghost" className="mb-4 pl-0 hover:bg-transparent hover:text-brand-600">
+                            <ArrowLeft className="w-4 h-4 mr-2" /> Back to Leads
+                        </Button>
+                    </Link>
+                    <div className="bg-red-50 border border-red-200 rounded-xl p-6">
+                        <h2 className="text-xl font-bold text-red-700 mb-2">Database Schema Not Updated</h2>
+                        <p className="text-red-600 mb-4">
+                            The requested page requires columns that have not yet been migrated to the database.
+                            Loading Lead ID: <strong>{leadId}</strong>
+                        </p>
+
+                        <h3 className="font-semibold text-gray-900 mt-6 mb-2">How to Fix</h3>
+                        <div className="bg-gray-900 text-gray-100 p-4 rounded-md font-mono text-sm overflow-x-auto whitespace-pre">
+                            {`-- Please run the following SQL migration against your Supabase database:
+ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "reference_id" varchar(255);
+ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "workflow_step" integer DEFAULT 1 NOT NULL;
+ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "lead_score" integer DEFAULT 30 NOT NULL;
+ALTER TABLE "leads" ADD COLUMN IF NOT EXISTS "last_contact_at" timestamp with time zone;
+CREATE UNIQUE INDEX IF NOT EXISTS "leads_ref_idx" ON "leads" ("reference_id");`}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        console.error("Failed to load lead details:", err);
+        return <div className="p-8">An error occurred while loading lead details. Please check server logs.</div>;
+    }
+
     if (!lead) return <div className="p-8">Lead not found</div>;
 
     // Fetch Assignment

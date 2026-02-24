@@ -130,6 +130,7 @@ async function seed() {
             state: 'Delhi',
             city: 'New Delhi',
             uploader_id: ceoId,
+            reference_id: '#IT-2026-0001',
         },
         {
             id: 'LEAD-20260123-002',
@@ -141,6 +142,7 @@ async function seed() {
             state: 'Uttar Pradesh',
             city: 'Noida',
             uploader_id: ceoId,
+            reference_id: '#IT-2026-0002',
         }
     ];
     await db.insert(leads).values(leadData).onConflictDoNothing();

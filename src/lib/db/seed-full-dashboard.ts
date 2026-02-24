@@ -195,7 +195,8 @@ async function seed() {
             owner_contact: '9999999999',
             state: 'Delhi',
             city: 'New Delhi',
-            uploader_id: salesManagerId
+            uploader_id: salesManagerId,
+            reference_id: '#IT-SEED-001',
         },
         // Warm Lead (Sales Manager)
         {
@@ -207,7 +208,8 @@ async function seed() {
             owner_contact: '8888888888',
             state: 'Haryana',
             city: 'Gurugram',
-            uploader_id: salesManagerId
+            uploader_id: salesManagerId,
+            reference_id: '#IT-SEED-002',
         },
         // Converted Lead (Sales Head)
         {
@@ -219,7 +221,8 @@ async function seed() {
             owner_contact: '7777777777',
             state: 'Rajasthan',
             city: 'Jaipur',
-            uploader_id: salesHeadId
+            uploader_id: salesHeadId,
+            reference_id: '#IT-SEED-003',
         },
         // Pending Approval Lead (Business Head)
         {
@@ -231,7 +234,8 @@ async function seed() {
             owner_contact: '6666666666',
             state: 'Karnataka',
             city: 'Bangalore',
-            uploader_id: salesHeadId
+            uploader_id: salesHeadId,
+            reference_id: '#IT-SEED-004',
         }
     ];
 

@@ -21,7 +21,7 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
 });
 
 const TARGET_EMAIL = 'ceo@itarang.com';
-const NEW_PASSWORD = 'password@123';
+const NEW_PASSWORD = 'password123';
 
 async function updatePassword() {
     console.log(`🚀 Updating password for ${TARGET_EMAIL}...`);
