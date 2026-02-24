@@ -4,7 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LayoutDashboard, ShoppingCart, Users, FileText, Phone, PieChart, Package, FileCheck, Landmark, Briefcase, Building, Receipt, ClipboardCheck, Satellite } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, normalizeRole } from '@/lib/utils';
 import { useAuth } from '@/components/auth/AuthProvider';
 
 const roleNavigation: Record<string, any[]> = {
@@ -126,7 +126,7 @@ export function Sidebar() {
         return <div className="w-64 bg-slate-50/50 h-full border-r border-gray-100 hidden md:flex animate-pulse" />;
     }
 
-    const userRole = (user.role || 'user').toLowerCase();
+    const userRole = normalizeRole(user.role);
     const menuItems = roleNavigation[userRole] || roleNavigation['user'] || [];
 
     return (

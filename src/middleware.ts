@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
+import { normalizeRole } from "@/lib/utils";
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
@@ -92,7 +93,7 @@ export async function middleware(request: NextRequest) {
     .single();
 
   const rawRole = profile?.role || "user";
-  const role = rawRole.toLowerCase();
+  const role = normalizeRole(rawRole);
 
   const myDashboard = roleDashboards[role] || "/";
 

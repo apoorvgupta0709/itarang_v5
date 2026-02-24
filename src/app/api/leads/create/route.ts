@@ -11,8 +11,16 @@ export async function POST(request: Request) {
         let uploaderId = authData?.user?.id;
 
         if (!uploaderId) {
-            const { data: anyUser } = await supabase.from('users').select('id').limit(1).single();
-            if (anyUser) uploaderId = anyUser.id;
+            if (process.env.NODE_ENV !== 'production') {
+                const { data: anyUser } = await supabase.from('users').select('id').limit(1).single();
+                if (anyUser) uploaderId = anyUser.id;
+            } else {
+                return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+            }
+        }
+
+        if (!uploaderId) {
+            return NextResponse.json({ success: false, error: 'No user to assign lead owner' }, { status: 500 });
         }
 
         // 2. Generate Reference ID & ID
@@ -38,8 +46,7 @@ export async function POST(request: Request) {
         const leadScore = body.interestLevel === 'hot' ? 90 : (body.interestLevel === 'warm' ? 60 : 30);
 
         // 3. Insert into Leads
-        const { error } = await supabase.from('leads').insert({
-            id,
+        const { data: inserted, error } = await supabase.from('leads').insert({
             reference_id: referenceId,
             lead_source: 'ground_sales',
             interest_level: body.interestLevel || 'cold',
@@ -51,31 +58,26 @@ export async function POST(request: Request) {
             state: 'Unknown', // Placeholder, ideally extracted from address
             city: 'Unknown',  // Placeholder
             shop_address: body.currentAddress || null,
-            uploader_id: uploaderId || '00000000-0000-0000-0000-000000000000' // If no users exist, this might still fail FK, handled in catch
-        });
+            uploader_id: uploaderId
+        }).select('id, reference_id').single();
 
-        if (error) {
+        if (error || !inserted) {
             console.error("DB Insert Error", error);
             throw error;
         }
 
         return NextResponse.json({
             success: true,
-            leadId: id,
-            referenceId,
+            leadId: inserted.id,
+            referenceId: inserted.reference_id,
             message: "Lead created successfully"
         });
     } catch (error: any) {
         console.error("Error in /api/leads/create", error);
 
-        // Fallback for empty DBs or failing FKs to still test UI flows
-        const fallbackRef = `#IT-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 1000)).padStart(7, '0')}`;
-        const fallbackId = `LEAD-MOCK-${Math.floor(Math.random() * 1000)}`;
         return NextResponse.json({
-            success: true,
-            leadId: fallbackId,
-            referenceId: fallbackRef,
-            message: 'Fallback local lead created successfully'
-        });
+            success: false,
+            error: "Failed to create lead",
+        }, { status: 500 });
     }
 }

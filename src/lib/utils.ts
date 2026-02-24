@@ -19,3 +19,16 @@ export function formatCurrency(amount: number) {
         currency: 'INR'
     }).format(amount);
 }
+
+const roleAliases: Record<string, string> = {
+    dealers: 'dealer',
+    dealer_admin: 'dealer',
+    channel_partner: 'dealer'
+};
+
+export function normalizeRole(rawRole: string | null | undefined): string {
+    if (!rawRole) return 'user';
+    const role = rawRole.toLowerCase().trim();
+    return roleAliases[role] ?? role;
+}
+

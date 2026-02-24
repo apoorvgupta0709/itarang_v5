@@ -18,8 +18,19 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
     // Fetch Lead with Error Boundary
     let lead;
     try {
-        const result = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
+        let result = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
         lead = result[0];
+
+        if (!lead) {
+            const normalized = leadId.startsWith('#') ? leadId : `#${leadId}`;
+            result = await db.select().from(leads).where(eq(leads.reference_id, leadId)).limit(1);
+            if (result.length > 0) {
+                lead = result[0];
+            } else {
+                result = await db.select().from(leads).where(eq(leads.reference_id, normalized)).limit(1);
+                lead = result[0];
+            }
+        }
     } catch (err: any) {
         if (err?.code === '42703' || err?.message?.includes('does not exist')) {
             return (
@@ -56,13 +67,15 @@ CREATE UNIQUE INDEX IF NOT EXISTS "leads_ref_idx" ON "leads" ("reference_id");`}
 
     if (!lead) return <div className="p-8">Lead not found</div>;
 
+    const canonicalLeadId = lead.id;
+
     // Fetch Assignment
-    const [assignment] = await db.select().from(leadAssignments).where(eq(leadAssignments.lead_id, leadId)).limit(1);
+    const [assignment] = await db.select().from(leadAssignments).where(eq(leadAssignments.lead_id, canonicalLeadId)).limit(1);
 
     // Fetch Bolna Calls
     const callLogsArr = await db.select()
         .from(bolnaCalls)
-        .where(eq(bolnaCalls.lead_id, leadId))
+        .where(eq(bolnaCalls.lead_id, canonicalLeadId))
         .orderBy(desc(bolnaCalls.created_at));
 
     // Fetch All Users for Dropdown with roles for filtering
@@ -98,7 +111,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS "leads_ref_idx" ON "leads" ("reference_id");`}
         .leftJoin(changedByUser, eq(assignmentChangeLogs.changed_by, changedByUser.id))
         .leftJoin(oldUser, eq(assignmentChangeLogs.old_user_id, oldUser.id))
         .leftJoin(newUser, eq(assignmentChangeLogs.new_user_id, newUser.id))
-        .where(eq(assignmentChangeLogs.lead_id, leadId))
+        .where(eq(assignmentChangeLogs.lead_id, canonicalLeadId))
         .orderBy(desc(assignmentChangeLogs.changed_at));
 
     return (
