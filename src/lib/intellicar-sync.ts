@@ -18,7 +18,7 @@ import { desc, eq, and, sql } from "drizzle-orm";
 import { generateId } from "@/lib/api-utils";
 import {
   intellicarPost, toNum, toDecStr,
-  getgpshistory, getbatterymetricshistory, getfuelhistory, getdistancetravelled
+  getGpsHistory, getBatteryMetricsHistory, getfuelhistory, getDistanceTravelled
 } from "@/lib/intellicar";
 
 type RunOpts = {
@@ -479,7 +479,7 @@ async function syncDatasetWindow(vehicleno: string, dataset: string, startMs: nu
   const FIVE_MINS = 5 * 60 * 1000;
 
   if (dataset === 'gps') {
-    const payload = await getgpshistory("", vehicleno, startMs, endMs);
+    const payload = await getGpsHistory("", vehicleno, startMs, endMs);
     if (!okStatus(payload?.status)) throw new Error(payload?.msg || "GPS history failed");
     const rows = Array.isArray(payload?.data) ? payload.data : [];
     for (const d of rows) {
@@ -507,7 +507,7 @@ async function syncDatasetWindow(vehicleno: string, dataset: string, startMs: nu
     }
   }
   else if (dataset === 'can') {
-    const payload = await getbatterymetricshistory("", vehicleno, startMs, endMs);
+    const payload = await getBatteryMetricsHistory("", vehicleno, startMs, endMs);
     if (!okStatus(payload?.status)) throw new Error(payload?.msg || "CAN history failed");
     const rows = Array.isArray(payload?.data) ? payload.data : [];
     for (const d of rows) {
@@ -546,7 +546,7 @@ async function syncDatasetWindow(vehicleno: string, dataset: string, startMs: nu
     }
   }
   else if (dataset === 'distance') {
-    const payload = await getdistancetravelled("", vehicleno, startMs, endMs);
+    const payload = await getDistanceTravelled("", vehicleno, startMs, endMs);
     if (!okStatus(payload?.status)) throw new Error(payload?.msg || "Distance failed");
     let distanceVal = payload?.data?.distance;
     if (distanceVal === undefined) {

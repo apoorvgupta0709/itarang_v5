@@ -44,7 +44,7 @@ export const GET = async (req: NextRequest) => {
                 ))
                 .orderBy(desc(intellicarCanHistory.time_ms))
                 .limit(50000);
-        } else if (dataset === "fuelPct") {
+        } else if (dataset === "fuel_pct") {
             rows = await db.select().from(intellicarFuelHistory)
                 .where(and(
                     eq(intellicarFuelHistory.vehicleno, vehicleno),
@@ -54,7 +54,7 @@ export const GET = async (req: NextRequest) => {
                 ))
                 .orderBy(desc(intellicarFuelHistory.time_ms))
                 .limit(50000);
-        } else if (dataset === "fuelLitres") {
+        } else if (dataset === "fuel_litres") {
             rows = await db.select().from(intellicarFuelHistory)
                 .where(and(
                     eq(intellicarFuelHistory.vehicleno, vehicleno),

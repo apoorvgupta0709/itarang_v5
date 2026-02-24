@@ -127,9 +127,13 @@ export const inventory = pgTable('inventory', {
 
 export const leads = pgTable('leads', {
     id: varchar('id', { length: 255 }).primaryKey(), // LEAD-YYYYMMDD-SEQ
+    reference_id: varchar('reference_id', { length: 255 }).unique(), // #IT-YYYY-SEQ
     lead_source: varchar('lead_source', { length: 50 }).notNull(), // call_center, ground_sales, digital_marketing, database_upload, dealer_referral
     interest_level: varchar('interest_level', { length: 20 }).default('cold').notNull(), // cold, warm, hot
     lead_status: varchar('lead_status', { length: 50 }).default('new').notNull(), // new, assigned, contacted, qualified, converted, lost
+    workflow_step: integer('workflow_step').default(1).notNull(),
+    lead_score: integer('lead_score').default(0),
+    last_contact_at: timestamp('last_contact_at', { withTimezone: true }),
 
     // Dealer Info
     owner_name: text('owner_name').notNull(),
@@ -166,7 +170,13 @@ export const leads = pgTable('leads', {
         leadsSourceIdx: index('leads_source_idx').on(table.lead_source),
         leadsInterestIdx: index('leads_interest_idx').on(table.interest_level),
         leadsStatusIdx: index('leads_status_idx').on(table.lead_status),
+        leadsRefIdx: index('leads_ref_idx').on(table.reference_id),
     };
+});
+
+export const leadReferenceCounter = pgTable('lead_reference_counter', {
+    year: integer('year').primaryKey(),
+    seq: integer('seq').notNull().default(0),
 });
 
 export const leadAssignments = pgTable('lead_assignments', {
@@ -917,5 +927,31 @@ export const intellicarHistoryJobControl = pgTable('intellicar_history_job_contr
     status: text('status', { enum: ['running', 'paused', 'idle'] }).notNull().default('idle'),
     historical_start_ms: bigint('historical_start_ms', { mode: 'number' }).notNull().default(1725148800000), // 2025-09-01T00:00:00Z
     max_windows_per_run: integer('max_windows_per_run').notNull().default(48),
+    updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const loanFacilitationFiles = pgTable('loan_facilitation_files', {
+    id: varchar('id', { length: 255 }).primaryKey(),
+    lead_id: varchar('lead_id', { length: 255 }).references(() => leads.id).notNull(),
+    payment_method: varchar('payment_method', { length: 50 }), // finance, upfront
+    documents_uploaded: boolean('documents_uploaded').default(false),
+    company_validation_status: varchar('company_validation_status', { length: 50 }).default('pending'),
+    facilitation_fee_status: varchar('facilitation_fee_status', { length: 50 }).default('pending'),
+    fee_amount: decimal('fee_amount', { precision: 12, scale: 2 }),
+    created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const kycSessions = pgTable('kyc_sessions', {
+    lead_id: varchar('lead_id', { length: 255 }).primaryKey().references(() => leads.id),
+    payment_method: varchar('payment_method', { length: 50 }),
+    required_total: integer('required_total').default(0),
+    documents: jsonb('documents'),
+    consent_status: text('consent_status'),
+    coupon_code: varchar('coupon_code', { length: 50 }),
+    verification_status: jsonb('verification_status'),
+    kyc_draft_data: jsonb('kyc_draft_data'),
+    kyc_status: varchar('kyc_status', { length: 50 }).default('pending'),
+    created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updated_at: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });

@@ -10,10 +10,14 @@ function mustEnv(name: string) {
   return v;
 }
 
-export async function intellicarGetToken(): Promise<string> {
-  const baseUrl = mustEnv("INTELLICAR_BASE_URL");
-  const username = mustEnv("INTELLICAR_USERNAME");
-  const password = mustEnv("INTELLICAR_PASSWORD");
+export async function getIntellicarToken(): Promise<string> {
+  const baseUrl = process.env.INTELLICAR_BASE_URL || "https://apiplatform.intellicar.in";
+  const username = process.env.INTELLICAR_USERNAME;
+  const password = process.env.INTELLICAR_PASSWORD;
+
+  if (!username || !password) {
+    throw new Error("Missing Intellicar credentials in environment variables.");
+  }
 
   const res = await fetch(`${baseUrl}/api/standard/gettoken`, {
     method: "POST",
@@ -28,6 +32,10 @@ export async function intellicarGetToken(): Promise<string> {
   let json: IntellicarTokenResponse | any = {};
   try { json = JSON.parse(text); } catch { }
 
+  if (json?.status && json.status !== "SUCCESS") {
+    throw new Error(`Intellicar token failed: ${json.msg || json.error}`);
+  }
+
   const token =
     json?.token ||
     json?.access_token ||
@@ -39,8 +47,8 @@ export async function intellicarGetToken(): Promise<string> {
 }
 
 export async function intellicarPost(path: string, body: Record<string, any> = {}) {
-  const baseUrl = mustEnv("INTELLICAR_BASE_URL");
-  const token = await intellicarGetToken();
+  const baseUrl = process.env.INTELLICAR_BASE_URL || "https://apiplatform.intellicar.in";
+  const token = await getIntellicarToken();
 
   const res = await fetch(`${baseUrl}${path}`, {
     method: "POST",
@@ -55,6 +63,14 @@ export async function intellicarPost(path: string, body: Record<string, any> = {
 
   if (!res.ok) throw new Error(`Intellicar call failed: ${res.status} ${text}`);
   return json ?? text;
+}
+
+export async function listVehicleDeviceMapping(token: string): Promise<Array<{ vehicleno: string; deviceno: string }>> {
+  const res = await intellicarPost("/api/standard/listvehicledevicemapping");
+  if (res?.status === "SUCCESS") {
+    return res.data || [];
+  }
+  throw new Error(`Failed to list vehicle device mapping: ${res?.msg || "Unknown error"}`);
 }
 
 /** Returns number or null (treats "NA", "", null as null) */
@@ -79,11 +95,11 @@ export function toDecStr(v: any): string | null {
 
 // ==== HISTORICAL ENDPOINTS ====
 
-export async function getgpshistory(token: string, vehicleno: string, startMs: number, endMs: number) {
+export async function getGpsHistory(token: string, vehicleno: string, startMs: number, endMs: number) {
   return intellicarPost("/api/standard/getgpshistory", { vehicleno, starttime: startMs, endtime: endMs });
 }
 
-export async function getbatterymetricshistory(token: string, vehicleno: string, startMs: number, endMs: number) {
+export async function getBatteryMetricsHistory(token: string, vehicleno: string, startMs: number, endMs: number) {
   return intellicarPost("/api/standard/getbatterymetricshistory", { vehicleno, starttime: startMs, endtime: endMs });
 }
 
@@ -91,6 +107,6 @@ export async function getfuelhistory(token: string, vehicleno: string, inlitres:
   return intellicarPost("/api/standard/getfuelhistory", { vehicleno, inlitres, starttime: startMs, endtime: endMs });
 }
 
-export async function getdistancetravelled(token: string, vehicleno: string, startMs: number, endMs: number) {
+export async function getDistanceTravelled(token: string, vehicleno: string, startMs: number, endMs: number) {
   return intellicarPost("/api/standard/getdistancetravelled", { vehicleno, starttime: startMs, endtime: endMs });
 }

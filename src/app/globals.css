@@ -1,49 +1,91 @@
+/* 
+  Injects Tailwind CSS v4 core styles. 
+  Provides access to all default utility classes (e.g., flex, p-4, text-center).
+*/
 @import "tailwindcss";
 
+/* 
+  @theme block allows extending or overriding the default Tailwind design system. 
+  These CSS variables automatically generate corresponding utility classes.
+*/
 @theme {
+  /* 
+    Brand Color Palette
+    Generates utilities like text-brand-500, bg-brand-600, border-brand-100 
+  */
   --color-brand-50: #F0FDFA;
   --color-brand-100: #CCFBF1;
   --color-brand-500: #14B8A6;
   --color-brand-600: #0D9488;
   --color-brand-700: #0F766E;
 
+  /* 
+    Surface/Background Colors 
+    Generates utilities like bg-surface-peach, text-surface-teal
+  */
   --color-surface-peach: #FFF7ED;
   --color-surface-purple: #FAF5FF;
   --color-surface-teal: #F0FDFA;
   --color-surface-gray: #F9FAFB;
 
+  /* 
+    Custom Box Shadows
+    Generates utilities like shadow-soft, shadow-card 
+  */
   --shadow-soft: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.1);
 
+  /* 
+    Custom Border Radii (Rounded Corners)
+    Generates utilities like rounded-xl, rounded-3xl
+  */
   --radius-xl: 1rem;
   --radius-2xl: 1.25rem;
   --radius-3xl: 1.5rem;
 }
 
-
+/* 
+  @layer base applies default styles to bare HTML elements.
+  This ensures consistent baseline styling across the entire app.
+*/
 @layer base {
   body {
+    /* 
+      bg-[#F8F9FB]: Light grayish-blue background 
+      text-gray-800: Default dark text color
+      antialiased: Smooths font rendering 
+    */
     @apply bg-[#F8F9FB] text-gray-800 antialiased;
   }
 }
 
+/* 
+  @layer components defines reusable custom classes by combining Tailwind utilities.
+  This keeps HTML clean and ensures consistency for common UI elements.
+*/
 @layer components {
+
+  /* Standardized styling for card containers */
   .card-parcel {
     @apply bg-white rounded-2xl border border-gray-100 shadow-card p-6;
   }
 
+  /* Standardized styling for form input fields */
   .input-parcel {
     @apply w-full px-4 py-3 bg-gray-50 border-none rounded-xl text-sm text-gray-800 placeholder-gray-400 focus:ring-2 focus:ring-brand-100 focus:bg-white transition-all outline-none;
   }
 
+  /* Primary action button style with hover, active effects, and flexboxing for icons/text */
   .btn-primary {
     @apply px-4 py-2.5 bg-brand-600 text-white rounded-xl hover:bg-brand-700 font-medium shadow-lg shadow-brand-500/20 transition-all active:scale-95 flex items-center gap-2 justify-center;
   }
 
+  /* Rows for data tables, featuring a subtle hover highlight and bottom border */
   .table-row-parcel {
     @apply border-b border-gray-50 hover:bg-gray-50/50 transition-colors last:border-none;
   }
 
+  /* Small pill-shaped badge, usually used for showing state (e.g., Active, Pending) */
   .status-pill {
     @apply px-3 py-1 rounded-full text-xs font-medium inline-block;
   }

@@ -4,6 +4,7 @@ import React from 'react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { LayoutDashboard, Rocket, ShieldCheck, Zap } from 'lucide-react';
 import ApprovalWidget from '@/components/dashboard/ApprovalWidget';
+import { QuickActions } from '@/components/dashboard/QuickActions';
 
 export default function DashboardRootPage() {
     const { user, loading } = useAuth();
@@ -29,6 +30,8 @@ export default function DashboardRootPage() {
                     You've successfully logged into the iTarang CRM. Use the sidebar to navigate through your assigned modules and tools.
                 </p>
             </div>
+
+            <QuickActions />
 
             <div className="mb-12">
                 <ApprovalWidget />

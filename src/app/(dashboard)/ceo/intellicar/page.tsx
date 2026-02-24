@@ -228,11 +228,11 @@ function HistoryTab() {
   const [dataset, setDataset] = useState<string>("all");
 
   const { data: vehicles } = useQuery({
-    queryKey: ["ceo-intellicar-vehicles"],
+    queryKey: ["ceo-intellicar-vehicles-live"],
     queryFn: async () => {
       const res = await fetch("/api/intellicar/ceo/vehicles");
       const j = await res.json();
-      return j.data;
+      return j.vehicles || [];
     }
   });
 
@@ -270,6 +270,12 @@ function HistoryTab() {
     window.open(url, "_blank");
   };
 
+  const handleLiveExport = (format: "csv" | "json") => {
+    if (!selectedVehicle) return;
+    const url = `/api/intellicar/ceo/export-from-intellicar?vehicleno=${selectedVehicle}&startMs=${timeRange.startMs}&endMs=${timeRange.endMs}&dataset=${dataset}&format=${format}`;
+    window.open(url, "_blank");
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
       <div className="flex flex-col md:flex-row gap-4 p-6 rounded-2xl bg-white border border-gray-100 shadow-sm">
@@ -297,8 +303,8 @@ function HistoryTab() {
             <option value="all">All (Preview only)</option>
             <option value="gps">GPS History</option>
             <option value="can">CAN Metrics</option>
-            <option value="fuelPct">Fuel (Percentage)</option>
-            <option value="fuelLitres">Fuel (Litres)</option>
+            <option value="fuel_pct">Fuel (Percentage)</option>
+            <option value="fuel_litres">Fuel (Litres)</option>
             <option value="distance">Distance Windows</option>
           </select>
         </div>
@@ -340,14 +346,33 @@ function HistoryTab() {
               <button onClick={() => handleExport("json")} className="px-3 py-1.5 text-xs font-bold bg-white text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
                 Export JSON
               </button>
+              {["gps", "can", "distance"].includes(dataset) && (
+                <>
+                  <div className="w-px h-6 bg-gray-200 self-center mx-1" />
+                  <button onClick={() => handleLiveExport("csv")} className="px-3 py-1.5 text-xs font-bold bg-brand-50 text-brand-700 border border-brand-200 rounded-lg hover:bg-brand-100 transition-colors flex items-center gap-1">
+                    <History className="w-3.5 h-3.5" />
+                    Live Dataset (CSV)
+                  </button>
+                  <button onClick={() => handleLiveExport("json")} className="px-3 py-1.5 text-xs font-bold bg-brand-50 text-brand-700 border border-brand-200 rounded-lg hover:bg-brand-100 transition-colors flex items-center gap-1">
+                    <History className="w-3.5 h-3.5" />
+                    Live Dataset (JSON)
+                  </button>
+                </>
+              )}
             </div>
           )}
 
-          {(dataset === "all" || dataset === "gps") && <PreviewTable title="GPS History" rows={history?.gpsHistory || []} />}
-          {(dataset === "all" || dataset === "can") && <PreviewTable title="CAN Metrics History" rows={history?.canHistory || []} />}
-          {(dataset === "all" || dataset === "fuelPct") && <PreviewTable title="Fuel History (Pct)" rows={history?.fuelPct || []} />}
-          {(dataset === "all" || dataset === "fuelLitres") && <PreviewTable title="Fuel History (Litres)" rows={history?.fuelLitres || []} />}
-          {(dataset === "all" || dataset === "distance") && <PreviewTable title="Distance Windows (5m)" rows={history?.distance || []} />}
+          {dataset === "all" ? (
+            <>
+              <PreviewTable title="GPS History" rows={history?.gps || []} />
+              <PreviewTable title="CAN Metrics History" rows={history?.can || []} />
+              <PreviewTable title="Fuel History (Pct)" rows={history?.fuel_pct || []} />
+              <PreviewTable title="Fuel History (Litres)" rows={history?.fuel_litres || []} />
+              <PreviewTable title="Distance Windows (5m)" rows={history?.distance || []} />
+            </>
+          ) : (
+            <PreviewTable title={`History Data (${dataset})`} rows={history?.rows || []} />
+          )}
         </div>
       )}
     </div>
